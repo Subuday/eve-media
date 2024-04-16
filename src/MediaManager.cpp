@@ -1,13 +1,10 @@
 #include <iostream>
 #include "MediaManager.h"
+#include <vector>
 
-MediaManager::MediaManager(pa_context* ctx) : ctx(ctx) {
+MediaManager::MediaManager(pa_context* ctx) : ctx(ctx) {}
 
-}
-
-MediaManager::~MediaManager() {
-
-}
+MediaManager::~MediaManager() {}
 
 void MediaManager::prepare() {
     //Add logging
@@ -28,6 +25,16 @@ void MediaManager::prepare() {
     Player player(ps);
 
     std::cout << "Streams are created!" << std::endl;
+}
+
+vector<uint8_t> MediaManager::read() const {
+    std::cout << "Read data!" << std::endl;
+    vector<uint8_t> data;
+    return data;
+}
+
+void MediaManager::write(const vector<uint8_t>& data) {
+    std::cout << "Write data!" << std::endl;
 }
 
 MediaManager::Player::Player(pa_stream* stream) : stream(stream) {
@@ -58,6 +65,10 @@ void MediaManager::Player::start() {
     }
 }
 
+void MediaManager::Player::write(const vector<uint8_t>& data) {
+    
+}
+
 MediaManager::Recorder::Recorder(pa_stream* stream) : stream(stream) {
     pa_stream_set_write_callback(stream, stream_read_callback, nullptr);
 }
@@ -80,4 +91,9 @@ void MediaManager::Recorder::start() {
     if (result < 0) {
         std::cerr << "Recorder failed to connect stream!" << std::endl;
     }
+}
+
+vector<uint8_t> MediaManager::Recorder::read() {
+    vector<uint8_t> data;
+    return data;
 }

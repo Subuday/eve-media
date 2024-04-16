@@ -1,8 +1,9 @@
 #include <iostream>
+#include <main.h>
 #include <MediaManager.h>
 #include <pulse/pulseaudio.h>
 
-static void context_state_callback(pa_context *c, void *userdata) {
+void App::context_state_callback(pa_context *c, void *userdata) {
     //TODO: Add logging
     MediaManager* manager = static_cast<MediaManager*>(userdata);
     switch (pa_context_get_state(c)) {
@@ -21,22 +22,29 @@ static void context_state_callback(pa_context *c, void *userdata) {
     }
 }
 
-int main(int argc, char *argv[]) {
+App::App() {
     //TODO: Handle error
-    pa_mainloop* loop = pa_mainloop_new();
+    loop = pa_mainloop_new();
 
     // TODO: Handle error
     pa_mainloop_api *api = pa_mainloop_get_api(loop);
 
     pa_context *context = pa_context_new(api, "eve-media");
-    MediaManager manager(context);
+    manager = new MediaManager(context);
     pa_context_set_state_callback(context, context_state_callback, &manager);
     pa_context_connect(context, nullptr, PA_CONTEXT_NOAUTOSPAWN, nullptr);
+}
 
-    //TODO: Handle error
+void App::run() {
     pa_mainloop_run(loop, NULL);
+}
 
+App::~App() {
+    delete manager;
     pa_mainloop_free(loop);
-    
+}
+
+int main(int argc, char *argv[]) {
+    App().run();
     return 0;
 }
