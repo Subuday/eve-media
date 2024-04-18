@@ -1,19 +1,21 @@
 #include <pulse/pulseaudio.h>
 #include <MediaManager.h>
+#include <thread>
 
 #ifndef MAIN_H
 #define MAIN_H
 
 class App {
     private:
-        pa_mainloop* loop;
-
+        std::thread* appThread;
         static void context_state_callback(pa_context *c, void *userdata);
+        void loop();
     public:
-        MediaManager* manager = nullptr;
+        MediaManager manager;
 
         App();
-        void run();
+        void start();
+        void join();
         ~App();
 };
 

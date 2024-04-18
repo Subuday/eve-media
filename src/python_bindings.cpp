@@ -19,6 +19,6 @@ PYBIND11_MODULE(eve_media, m) {
 
     pybind11::class_<App>(m, "App")
         .def(pybind11::init<>())
-        .def("run", &App::run)
+        .def("start", &App::start)
         .def_readonly("media_manager", &App::manager); 
 }
