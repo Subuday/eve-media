@@ -1,5 +1,5 @@
 #include <pybind11/pybind11.h> 
-#include "main.h"
+#include "App.h"
 #include "MediaManager.h"
 #include <vector>
 
@@ -18,7 +18,7 @@ PYBIND11_MODULE(eve_media, m) {
         });
 
     pybind11::class_<App>(m, "App")
-        .def(pybind11::init<>())
-        .def("start", &App::start)
-        .def_readonly("media_manager", &App::manager); 
+        .def_static("instance", &App::instance, pybind11::return_value_policy::reference)
+        .def("media_manager", &App::getMediaManager, pybind11::return_value_policy::reference)
+        .def("start", &App::start);
 }

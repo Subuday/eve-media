@@ -12,6 +12,7 @@ if(BUILD_PYTHON_BINDINGS)
     pybind11_add_module(
         eve_media
         src/main.cpp
+        src/App.cpp
         src/MediaManager.cpp
         src/python_bindings.cpp
     )
@@ -19,6 +20,7 @@ else()
     add_executable(
         eve_media
         src/main.cpp
+        src/App.cpp
         src/MediaManager.cpp
     )
 endif()
