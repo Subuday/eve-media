@@ -35,9 +35,13 @@ void MediaManager::prepare(pa_context* ctx) {
 }
 
 vector<uint8_t> MediaManager::read() const {
-    std::cout << "Read data!" << std::endl;
-    vector<uint8_t> data;
-    return data;
+    if (recorder != nullptr) {
+        return recorder->read();
+    } else {
+        cerr << "Recorder is not initialised!" << endl;
+        vector<uint8_t> data;
+        return data;
+    }
 }
 
 void MediaManager::write(const vector<uint8_t>& data) {
@@ -107,7 +111,7 @@ void MediaManager::Player::stream_write_free_callback(void* p) {
 }
 
 bool MediaManager::Player::writeStream(size_t chunkSize) {
-    if (chunkSize < 3072) { // Minimum number of request bytes
+    if (chunkSize == 0) {
         return false;
     }
 
@@ -253,35 +257,90 @@ void MediaManager::Player::handleStreamReadyState() {
 }
 
 MediaManager::Recorder::Recorder(pa_stream* stream) : stream(stream) {
-    pa_stream_set_read_callback(stream, stream_read_callback, nullptr);
+    pa_stream_set_read_callback(stream, stream_read_callback, this);
 }
 
 void MediaManager::Recorder::stream_read_callback(pa_stream* stream, size_t nbytes, void* userdata) {
-    // const void* data;
-    // if (pa_stream_peek(s, &data, &length) < 0) {
-    //     std::cerr << "Failed to read data from stream" << std::endl;
-    //     return;
-    // }
+    Recorder* recorder = static_cast<Recorder*>(userdata);
+    
+    const void* chunk;
+    int result = pa_stream_peek(stream, &chunk, &nbytes);
+    if (result < 0) {
+        cerr << "Recorder failed to read data from stream" << endl;
+        return;
+    }
 
-    // if (data && length > 0) {
-    //     out.write(reinterpret_cast<const char*>(data), length);
-    // }
+    if (chunk && nbytes > 0) {
+        {
+            lock_guard<mutex> lock(recorder->mtx);
+            const uint8_t* chunkPtr = static_cast<const uint8_t*>(chunk);
+            recorder->buffer.insert(recorder->buffer.end(), chunkPtr, chunkPtr + nbytes);
+        }
+    }
 
-    // // Here you can process the data, but for simplicity, we're just dropping it.
-    // // For example, you could write it to a file or process the audio data.
-
-    // pa_stream_drop(s); // Must be called after `pa_stream_peek()`.
+    pa_stream_drop(stream);
 }
 
 void MediaManager::Recorder::start() {
-    // TODO: Log error and cleaning
-    int result = pa_stream_connect_record(stream, nullptr, nullptr, PA_STREAM_NOFLAGS);
-    if (result < 0) {
-        std::cerr << "Recorder failed to connect stream!" << std::endl;
-    }
+
 }
 
 vector<uint8_t> MediaManager::Recorder::read() {
-    vector<uint8_t> data;
-    return data;
+    pa_threaded_mainloop* loop = App::instance().getLoop();
+    pa_threaded_mainloop_lock(loop);
+    pa_stream_state_t state = pa_stream_get_state(stream);
+    pa_threaded_mainloop_unlock(loop);
+
+    switch (state) {
+        case PA_STREAM_UNCONNECTED:
+            connectStream();
+            break;
+        case PA_STREAM_CREATING:
+            cout << "Recorder stream is being created." << endl;
+            break;
+        case PA_STREAM_READY:
+            break;
+        case PA_STREAM_FAILED:
+            cerr << "Recorder stream has failed." << endl;
+            break;
+        case PA_STREAM_TERMINATED:
+            cerr << "Recorder stream has been terminated." << endl;
+            break;
+        default:
+            cerr << "Recorder stream is in unknown state." << endl;
+            break;
+    }
+
+    const size_t chunkSize = 4096;
+    vector<uint8_t> chunk;
+    {
+        lock_guard<mutex> lock(mtx);
+        if (buffer.size() >= chunkSize) {
+            chunk.assign(buffer.begin(), buffer.begin() + chunkSize);
+            buffer.erase(buffer.begin(), buffer.begin() + chunkSize);
+        }
+    }
+    
+    return chunk;
+}
+
+void MediaManager::Recorder::connectStream() {
+    pa_threaded_mainloop* loop = App::instance().getLoop();
+
+    pa_threaded_mainloop_lock(loop);
+
+    pa_stream_state_t state = pa_stream_get_state(stream);
+    if (state != PA_STREAM_UNCONNECTED) {
+        pa_threaded_mainloop_unlock(loop);
+        return;
+    }
+
+    int result = pa_stream_connect_record(stream, nullptr, nullptr, PA_STREAM_NOFLAGS);
+    if (result == 0) {
+        cout << "Recorder succeeded to connect stream!" << endl;
+    } else {
+        cerr << "Recorder failed to connect stream!" << endl;
+    }
+
+    pa_threaded_mainloop_unlock(loop);
 }

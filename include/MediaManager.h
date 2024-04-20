@@ -47,9 +47,13 @@ public:
 
     class Recorder {
     private:
+        mutex mtx;
         pa_stream* stream;
+        vector<uint8_t> buffer;
 
         static void stream_read_callback(pa_stream* s, size_t length, void* userdata);
+
+        void connectStream();
     public:
         Recorder(pa_stream* stream);
 
