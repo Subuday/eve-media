@@ -29,13 +29,16 @@ App& App::instance() {
     return instance;
 }
 
-App::App() {}
+App::App() {
+
+}
 
 void App::start() {
     //TODO: Handle error
     // Make volitile
 
     loop.store(pa_threaded_mainloop_new());
+    networkClient.store(new NetworkClient());
     mediaManager.store(new MediaManager());
 
     pa_threaded_mainloop* loop = getLoop();

@@ -1,6 +1,7 @@
 #include <atomic>
 #include <functional>  
 #include <pulse/pulseaudio.h>
+#include <NetworkClient.h>
 #include <MediaManager.h>
 #include <mutex>
 #include <thread>
@@ -14,6 +15,7 @@ using namespace std;
 class App {
     private:
         atomic<pa_threaded_mainloop*> loop;
+        atomic<NetworkClient*> networkClient;
         atomic<MediaManager*> mediaManager;
 
         static void context_state_callback(pa_context *c, void *userdata);

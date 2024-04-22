@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 option(BUILD_PYTHON_BINDINGS "Build Python Bindings" OFF)
 
+include_directories(lib/websocketpp)
+
 add_subdirectory(lib/pybind11)
 
 if(BUILD_PYTHON_BINDINGS)
@@ -13,6 +15,7 @@ if(BUILD_PYTHON_BINDINGS)
         eve_media
         src/main.cpp
         src/App.cpp
+        src/NetworkClient.cpp
         src/MediaManager.cpp
         src/python_bindings.cpp
     )
@@ -21,6 +24,7 @@ else()
         eve_media
         src/main.cpp
         src/App.cpp
+        src/NetworkClient.cpp
         src/MediaManager.cpp
     )
 endif()
@@ -29,6 +33,8 @@ target_include_directories(eve_media PUBLIC include)
 
 target_link_libraries(
     eve_media
+    PRIVATE ssl
+    PRIVATE crypto
     PRIVATE pulse
     PRIVATE pthread
 )
