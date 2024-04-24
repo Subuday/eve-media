@@ -5,18 +5,18 @@
 #include <thread>
 #include <vector>
 
-Semaphore::Semaphore(int count) : _count(0) {}
+Semaphore::Semaphore() : count(0) {}
 
 void Semaphore::acquire() {
     std::unique_lock<std::mutex> lock(mtx);
-    while (_count == 0) {
+    while (count == 0) {
         cv.wait(lock);
     }
-    _count--;
+    count--;
 }
 
 void Semaphore::release() {
     std::unique_lock<std::mutex> lock(mtx);
-    _count++;
+    count++;
     cv.notify_one();
 }

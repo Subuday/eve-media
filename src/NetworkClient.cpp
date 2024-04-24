@@ -2,7 +2,7 @@
 
 const string NetworkClient::TAG = "[NetworkClient] ";
 
-NetworkClient::NetworkClient() : semaphore(0) {}
+NetworkClient::NetworkClient() {}
 
 void NetworkClient::prepare() {
     client.clear_access_channels(websocketpp::log::alevel::frame_header);
