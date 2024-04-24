@@ -14,7 +14,7 @@ pa_threaded_mainloop* MediaClient::loop() {
     return MediaClient::_loop;
 }
 
-MediaClient::MediaClient() {}
+MediaClient::MediaClient() : semaphore(0) {}
 
 void MediaClient::contextStateCallback(pa_context *c, void *userdata) {
     //TODO: Add logging

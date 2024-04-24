@@ -11,10 +11,10 @@ class Semaphore {
 private:
     std::mutex mtx;
     std::condition_variable cv;
-    int count;
+    int _count;
 
 public:
-    Semaphore();
+    Semaphore(int count);
 
     void acquire();
     void release();
