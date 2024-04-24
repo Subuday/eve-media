@@ -3,23 +3,33 @@
 #include <vector>
 #include <mutex>
 
+#include <Semaphore.h>
+
 #ifndef MEDIAMANAGER_H
 #define MEDIAMANAGER_H
 
 using namespace std; 
 
-class MediaManager {
+class MediaClient {
 public:
     class Player;
     class Recorder;
 private:
+    static pa_threaded_mainloop* _loop;
+    
+    Semaphore semaphore;
     Recorder* recorder = nullptr;
     Player* player = nullptr;
-public:
-    MediaManager();
-    ~MediaManager(); 
 
-    void prepare(pa_context* ctx);
+    static void contextStateCallback(pa_context *c, void *userdata);
+    void onContextReady(pa_context *c);
+public:
+    static pa_threaded_mainloop* loop();
+
+    MediaClient();
+    ~MediaClient(); 
+
+    void prepare();
     vector<uint8_t> read() const;
     void write(const vector<uint8_t>& data);
 

@@ -48,7 +48,7 @@ void readFile() {
 
         vector<uint8_t> chunk(audio.begin() + start, audio.begin() + end);
         
-        app.getMediaManager()->write(chunk);
+        app.getMediaClient()->write(chunk);
     }
 
     cout << "Player all chunks are written. " << totalChunks << endl;
@@ -67,7 +67,7 @@ void writeFile() {
 
     App& app = App::instance();
     while (true) {
-        vector<uint8_t> chunk = app.getMediaManager()->read();
+        vector<uint8_t> chunk = app.getMediaClient()->read();
         if (chunk.size() > 0) {
             file.write(reinterpret_cast<const char*>(chunk.data()), chunk.size());
         }
@@ -80,11 +80,11 @@ int main(int argc, char *argv[]) {
     App& app = App::instance();
     app.start();
 
-    thread pt(readFile);
-    thread rt(writeFile);
+    // thread pt(readFile);
+    // thread rt(writeFile);
 
-    rt.join();
-    pt.join();
+    // rt.join();
+    // pt.join();
  
     return 0;
 }

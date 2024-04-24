@@ -3,38 +3,81 @@
 #include <chrono>
 #include <iostream>
 #include <thread>
-#include "MediaManager.h"
+#include "Semaphore.h"
+#include "MediaClient.h"
 #include <vector>
+#include <pulse/pulseaudio.h>
 
-MediaManager::MediaManager() {}
+pa_threaded_mainloop* MediaClient::_loop = nullptr;
 
-MediaManager::~MediaManager() {
-    delete recorder;
-    delete player;
+pa_threaded_mainloop* MediaClient::loop() {
+    return MediaClient::_loop;
 }
 
-void MediaManager::prepare(pa_context* ctx) {
-    //Add logging
-    std::cout << "Context is ready!" << std::endl;
+MediaClient::MediaClient() {}
+
+void MediaClient::contextStateCallback(pa_context *c, void *userdata) {
+    //TODO: Add logging
+    MediaClient* mediaClient = static_cast<MediaClient*>(userdata);
+    switch (pa_context_get_state(c)) {
+        case PA_CONTEXT_READY: {
+            mediaClient->onContextReady(c);
+            break;
+        }
+        case PA_CONTEXT_FAILED:
+        case PA_CONTEXT_TERMINATED:
+            std::cerr << "Context failed or was terminated" << std::endl;
+            // Perhaps signal your application to exit or attempt to reconnect
+            break;
+        default:
+            std::cerr << "Context state was ignored" << std::endl;
+            // Other state changes can be handled or ignored
+            break;
+    }
+}
+
+void MediaClient::prepare() {
+    pa_threaded_mainloop* loop = pa_threaded_mainloop_new();
+    MediaClient::_loop = loop;
+
+    //TODO: Handle error
+    pa_threaded_mainloop_start(loop);
+
+    pa_threaded_mainloop_lock(loop);
+
+    // TODO: Handle error
+    pa_mainloop_api *api = pa_threaded_mainloop_get_api(loop);
+
+    pa_context *context = pa_context_new(api, "eve-project");
+    pa_context_set_state_callback(context, contextStateCallback, this);
+    pa_context_connect(context, nullptr, PA_CONTEXT_NOFLAGS, nullptr);
+
+    pa_threaded_mainloop_unlock(loop);
+
+    semaphore.acquire();
+}
+
+void MediaClient::onContextReady(pa_context *c) {
+    //Add logging and error handling
+    cout << "Context is ready!" << endl;
 
     pa_sample_spec ss;
     ss.format = PA_SAMPLE_S16LE;
     ss.channels = 2;
     ss.rate = 44100;
     
-    pa_stream* rs = pa_stream_new(ctx, "eva-media-recorder", &ss, nullptr);
-    pa_stream* ps = pa_stream_new(ctx, "eva-media-player", &ss, nullptr);
-    if (!rs || !ps) {
-       return;
-    }
+    pa_stream* rs = pa_stream_new(c, "eva-media-recorder", &ss, nullptr);
+    pa_stream* ps = pa_stream_new(c, "eva-media-player", &ss, nullptr);
 
     recorder = new Recorder(rs);
     player = new Player(ps);
 
-    std::cout << "Streams are created!" << std::endl;
+    cout << "Streams are created!" << endl;
+
+    semaphore.release();
 }
 
-vector<uint8_t> MediaManager::read() const {
+vector<uint8_t> MediaClient::read() const {
     if (recorder != nullptr) {
         return recorder->read();
     } else {
@@ -44,7 +87,7 @@ vector<uint8_t> MediaManager::read() const {
     }
 }
 
-void MediaManager::write(const vector<uint8_t>& data) {
+void MediaClient::write(const vector<uint8_t>& data) {
     if (player != nullptr) {
         player->write(data);
     } else {
@@ -52,13 +95,13 @@ void MediaManager::write(const vector<uint8_t>& data) {
     }
 }
 
-MediaManager::Player::Player(pa_stream* stream) : stream(stream) {
+MediaClient::Player::Player(pa_stream* stream) : stream(stream) {
     pa_stream_set_state_callback(stream, streamStateCallback, nullptr);
     pa_stream_set_underflow_callback(stream, stream_underflow_callback, this);
     pa_stream_set_write_callback(stream, stream_write_callback, this);
 }
 
-void MediaManager::Player::streamStateCallback(pa_stream *s, void *userdata) {
+void MediaClient::Player::streamStateCallback(pa_stream *s, void *userdata) {
     switch (pa_stream_get_state(s)) {
         case PA_STREAM_READY: {
             const pa_buffer_attr *attr = pa_stream_get_buffer_attr(s);
@@ -79,14 +122,14 @@ void MediaManager::Player::streamStateCallback(pa_stream *s, void *userdata) {
     }
 }
 
-void MediaManager::Player::stream_underflow_callback(pa_stream *s, void *userdata) {
+void MediaClient::Player::stream_underflow_callback(pa_stream *s, void *userdata) {
     Player* player = static_cast<Player*>(userdata);
     player->isUnderflow = true;
     cerr << "Player stream underflow occurred!" << endl;
     //TODO: Add trigering of writing
 }
 
-void MediaManager::Player::stream_write_callback(pa_stream* s, size_t length, void* userdata) {
+void MediaClient::Player::stream_write_callback(pa_stream* s, size_t length, void* userdata) {
     // TODO: ADD Logs and null checks
     Player* player = static_cast<Player*>(userdata);
 
@@ -106,11 +149,11 @@ void MediaManager::Player::stream_write_callback(pa_stream* s, size_t length, vo
     player->writeStream(chunkSize);
 }
 
-void MediaManager::Player::stream_write_free_callback(void* p) {
+void MediaClient::Player::stream_write_free_callback(void* p) {
     delete[] static_cast<uint8_t*>(p);
 }
 
-bool MediaManager::Player::writeStream(size_t chunkSize) {
+bool MediaClient::Player::writeStream(size_t chunkSize) {
     if (chunkSize == 0) {
         return false;
     }
@@ -140,18 +183,18 @@ bool MediaManager::Player::writeStream(size_t chunkSize) {
     return result == 0;
 }
 
-void MediaManager::Player::start() {
+void MediaClient::Player::start() {
 
 }
 
-void MediaManager::Player::write(const vector<uint8_t>& data) {
+void MediaClient::Player::write(const vector<uint8_t>& data) {
     // std::cout << "Player buffer is fulfilled!" << std::endl;
     {
         lock_guard<mutex> lock(mtx);
         buffer.insert(buffer.end(), data.begin(), data.end());
     }
 
-    pa_threaded_mainloop* loop = App::instance().getLoop();
+    pa_threaded_mainloop* loop = MediaClient::loop();
     pa_threaded_mainloop_lock(loop);
     pa_stream_state_t state = pa_stream_get_state(stream);
     pa_threaded_mainloop_unlock(loop);
@@ -178,8 +221,8 @@ void MediaManager::Player::write(const vector<uint8_t>& data) {
     }   
 }
 
-void MediaManager::Player::connectStreamIfBufferIsSufficient() {
-    pa_threaded_mainloop* loop = App::instance().getLoop();
+void MediaClient::Player::connectStreamIfBufferIsSufficient() {
+    pa_threaded_mainloop* loop = MediaClient::loop();
 
     pa_threaded_mainloop_lock(loop);
 
@@ -210,9 +253,9 @@ void MediaManager::Player::connectStreamIfBufferIsSufficient() {
     pa_threaded_mainloop_unlock(loop);
 }
 
-void MediaManager::Player::handleStreamReadyState() {
+void MediaClient::Player::handleStreamReadyState() {
     if (isUnderflow) {
-        pa_threaded_mainloop* loop = App::instance().getLoop();
+        pa_threaded_mainloop* loop = MediaClient::loop();
 
         pa_threaded_mainloop_lock(loop);
 
@@ -256,11 +299,11 @@ void MediaManager::Player::handleStreamReadyState() {
     }
 }
 
-MediaManager::Recorder::Recorder(pa_stream* stream) : stream(stream) {
+MediaClient::Recorder::Recorder(pa_stream* stream) : stream(stream) {
     pa_stream_set_read_callback(stream, stream_read_callback, this);
 }
 
-void MediaManager::Recorder::stream_read_callback(pa_stream* stream, size_t nbytes, void* userdata) {
+void MediaClient::Recorder::stream_read_callback(pa_stream* stream, size_t nbytes, void* userdata) {
     Recorder* recorder = static_cast<Recorder*>(userdata);
     
     const void* chunk;
@@ -281,12 +324,12 @@ void MediaManager::Recorder::stream_read_callback(pa_stream* stream, size_t nbyt
     pa_stream_drop(stream);
 }
 
-void MediaManager::Recorder::start() {
+void MediaClient::Recorder::start() {
 
 }
 
-vector<uint8_t> MediaManager::Recorder::read() {
-    pa_threaded_mainloop* loop = App::instance().getLoop();
+vector<uint8_t> MediaClient::Recorder::read() {
+    pa_threaded_mainloop* loop = MediaClient::loop();
     pa_threaded_mainloop_lock(loop);
     pa_stream_state_t state = pa_stream_get_state(stream);
     pa_threaded_mainloop_unlock(loop);
@@ -324,8 +367,8 @@ vector<uint8_t> MediaManager::Recorder::read() {
     return chunk;
 }
 
-void MediaManager::Recorder::connectStream() {
-    pa_threaded_mainloop* loop = App::instance().getLoop();
+void MediaClient::Recorder::connectStream() {
+    pa_threaded_mainloop* loop = MediaClient::loop();
 
     pa_threaded_mainloop_lock(loop);
 
@@ -344,3 +387,5 @@ void MediaManager::Recorder::connectStream() {
 
     pa_threaded_mainloop_unlock(loop);
 }
+
+MediaClient::~MediaClient() {}

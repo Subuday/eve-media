@@ -1,48 +1,66 @@
 #include <NetworkClient.h>
 
-NetworkClient::NetworkClient() {
+const string NetworkClient::TAG = "[NetworkClient] ";
+
+NetworkClient::NetworkClient() {}
+
+void NetworkClient::prepare() {
+    client.clear_access_channels(websocketpp::log::alevel::frame_header);
+    client.clear_access_channels(websocketpp::log::alevel::frame_payload);
+
     client.init_asio();
     client.start_perpetual();
-    client.set_tls_init_handler([this](websocketpp::connection_hdl hdl) {
+    #ifndef NO_TLS
+    client.set_tls_init_handler([this](ws::connection_hdl hdl) {
         return onTslInit(hdl);    
     });
+    #endif
 
-    t = new thread([this](){
+    clientThread = new thread([this](){
         client.run();
     });
 
-    connect();
-}
-
-void NetworkClient::connect() {
-    websocketpp::lib::error_code ec;
-    ws::client::connection_ptr con = client.get_connection("wss://marketdata.tradermade.com/feedadv", ec);
+    ws::error_code ec;
+    ws::client::connection_ptr con = client.get_connection("ws://localhost:8765", ec);
     if (ec) {
-        cout << "Network Client connect initialization error: " << ec.message() << endl;
+        cout << TAG << "Connection initialization error: " << ec.message() << endl;
         return;
     }
+    cout << TAG << "Connection initialization successful" << endl;
 
     con->set_open_handler(
-        [this, c = &client](ws::connection_hdl hdl) {
-            this->onOpenConnection(c, hdl);
+        [this](ws::connection_hdl hdl) {
+            this->onOpenConnection(hdl);
         }
     );
     con->set_message_handler(
         [this](websocketpp::connection_hdl hdl, auto msg) {
-            this->onMessage(hdl, msg);
+            this->onReceiveMessage(hdl, msg);
         }
     );
     con->set_fail_handler(
-        [this, c = &client](ws::connection_hdl hdl) {
-            this->onOpenConnection(c, hdl);
+        [this](ws::connection_hdl hdl) {
+            this->onFailConnection(hdl);
+        }
+    );
+    con->set_close_handler(
+        [this](ws::connection_hdl hdl) {
+            this->onCloseConnection(hdl);
         }
     );
 
     client.connect(con);
+
+    semaphore.acquire();
 }
 
-shared_ptr<ws::context> NetworkClient::onTslInit(ws::connection_hdl hdl) {
-    shared_ptr<ws::context> ctx = make_shared<ws::context>(ws::context::sslv23);
+void NetworkClient::setOnReceiveAudioCallback(function<void(vector<uint8_t>)> callback) {
+    onReceiveAudioCallback = callback;
+}
+
+#ifndef NO_TLS
+shared_ptr<ws::ssl::context> NetworkClient::onTslInit(ws::connection_hdl hdl) {
+    shared_ptr<ws::ssl::context> ctx = make_shared<ws::ssl::context>(ws::ssl::context::sslv23);
 
      try {
         ctx->set_options(
@@ -57,16 +75,46 @@ shared_ptr<ws::context> NetworkClient::onTslInit(ws::connection_hdl hdl) {
     }
     return ctx;
 }
+#endif
 
-void NetworkClient::onOpenConnection(ws::client* c, ws::connection_hdl hdl) {
-    websocketpp::lib::error_code ec;
-    ws::client::connection_ptr con = c->get_con_from_hdl(hdl, ec);
-    string payload = "{\"userKey\":\"ws1wY5kyARM8NjrXOtIg\", \"symbol\":\"EURUSD,GBPUSD\"}";
-    c->send(con, payload, websocketpp::frame::opcode::text);
+void NetworkClient::onOpenConnection(ws::connection_hdl hdl) {
+    cout << TAG << "Connection is opened" << endl;
+    chdl = hdl;
+    semaphore.release();
 }
 
-void NetworkClient::onMessage(websocketpp::connection_hdl, ws::client::message_ptr msg) {
-    std::cout << "Received message: " << msg->get_payload() << std::endl;
+void NetworkClient::onReceiveMessage(websocketpp::connection_hdl, ws::client::message_ptr msg) {
+    if (!onReceiveAudioCallback) {
+        return;
+    }
+    string payload = msg->get_payload();
+    vector<uint8_t> audio(payload.begin(), payload.end());
+    onReceiveAudioCallback(audio);
+}
+
+void NetworkClient::onFailConnection(ws::connection_hdl hdl) {
+    cout << TAG << "Connection is failed" << endl;
+}
+
+void NetworkClient::onCloseConnection(ws::connection_hdl hdl) {
+    cout << TAG << "Connection is closed" << endl;
+}
+
+void NetworkClient::sendAudio(vector<uint8_t> data) {
+    ws::error_code ec;
+    ws::client::connection_ptr con = client.get_con_from_hdl(chdl, ec);
+    if (ec) {
+        cout << TAG << "Sending audio failed: " << ec.message() << endl;
+        return;
+    }
+
+    ec = con->send(data.data(), data.size(), websocketpp::frame::opcode::binary);   
+    if (ec) {
+        cout << TAG << "Sending audio failed: " << ec.message() << endl;
+        return;
+    }
+
+    // cout << TAG << "Audio sent" << endl;
 }
 
 NetworkClient::~NetworkClient() {}

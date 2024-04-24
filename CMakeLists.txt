@@ -6,6 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED True)
 
 option(BUILD_PYTHON_BINDINGS "Build Python Bindings" OFF)
 
+# cadd_definitions(-DNO_TLS)
+
 include_directories(lib/websocketpp)
 
 add_subdirectory(lib/pybind11)
@@ -16,8 +18,9 @@ if(BUILD_PYTHON_BINDINGS)
         src/main.cpp
         src/App.cpp
         src/NetworkClient.cpp
-        src/MediaManager.cpp
+        src/MediaClient.cpp
         src/python_bindings.cpp
+        src/utils/Semaphore.cpp
     )
 else()
     add_executable(
@@ -25,7 +28,8 @@ else()
         src/main.cpp
         src/App.cpp
         src/NetworkClient.cpp
-        src/MediaManager.cpp
+        src/MediaClient.cpp
+        src/utils/Semaphore.cpp
     )
 endif()
 
