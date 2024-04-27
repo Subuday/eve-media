@@ -14,7 +14,7 @@ pa_threaded_mainloop* MediaClient::loop() {
     return MediaClient::_loop;
 }
 
-MediaClient::MediaClient() {}
+MediaClient::MediaClient() : countDownLatch(2) {}
 
 void MediaClient::contextStateCallback(pa_context *c, void *userdata) {
     //TODO: Add logging
@@ -54,7 +54,7 @@ void MediaClient::prepare() {
 
     pa_threaded_mainloop_unlock(loop);
 
-    semaphore.acquire();
+    countDownLatch.await();
 }
 
 void MediaClient::onContextReady(pa_context *c) {
@@ -65,24 +65,28 @@ void MediaClient::onContextReady(pa_context *c) {
     ss.format = PA_SAMPLE_S16LE;
     ss.channels = 2;
     ss.rate = 44100;
+
+    pa_sample_spec pss;
+    pss.format = PA_SAMPLE_S16LE;
+    pss.channels = 1;
+    pss.rate = 16000;
     
     pa_stream* rs = pa_stream_new(c, "eva-media-recorder", &ss, nullptr);
-    pa_stream* ps = pa_stream_new(c, "eva-media-player", &ss, nullptr);
+    pa_stream* ps = pa_stream_new(c, "eva-media-player", &pss, nullptr);
 
-    recorder = new Recorder(rs);
-    player = new Player(ps);
+    recorder = new Recorder(countDownLatch, rs);
+    player = new Player(countDownLatch, ps);
 
-    cout << "Streams are created!" << endl;
-
-    semaphore.release();
+    countDownLatch.countDown();
+    countDownLatch.countDown();
 }
 
-vector<uint8_t> MediaClient::read() const {
+vector<int16_t> MediaClient::read() const {
     if (recorder != nullptr) {
         return recorder->read();
     } else {
         cerr << "Recorder is not initialised!" << endl;
-        vector<uint8_t> data;
+        vector<int16_t> data;
         return data;
     }
 }
@@ -95,7 +99,7 @@ void MediaClient::write(const vector<uint8_t>& data) {
     }
 }
 
-MediaClient::Player::Player(pa_stream* stream) : stream(stream) {
+MediaClient::Player::Player(CountDownLatch& countDownLatch, pa_stream* stream) : countDownLatch(countDownLatch), stream(stream) {
     pa_stream_set_state_callback(stream, streamStateCallback, nullptr);
     pa_stream_set_underflow_callback(stream, stream_underflow_callback, this);
     pa_stream_set_write_callback(stream, stream_write_callback, this);
@@ -222,6 +226,8 @@ void MediaClient::Player::write(const vector<uint8_t>& data) {
 }
 
 void MediaClient::Player::connectStreamIfBufferIsSufficient() {
+    cout << "Player tries connecting stream!" << endl;
+
     pa_threaded_mainloop* loop = MediaClient::loop();
 
     pa_threaded_mainloop_lock(loop);
@@ -238,7 +244,7 @@ void MediaClient::Player::connectStreamIfBufferIsSufficient() {
         bufferSize = buffer.size();
     }
 
-    if (bufferSize < 44100 * 10) {
+    if (bufferSize < 44100) {
         pa_threaded_mainloop_unlock(loop);
         return;
     }
@@ -299,7 +305,7 @@ void MediaClient::Player::handleStreamReadyState() {
     }
 }
 
-MediaClient::Recorder::Recorder(pa_stream* stream) : stream(stream) {
+MediaClient::Recorder::Recorder(CountDownLatch& countDownLatch, pa_stream* stream) : countDownLatch(countDownLatch), stream(stream) {
     pa_stream_set_read_callback(stream, stream_read_callback, this);
 }
 
@@ -316,8 +322,9 @@ void MediaClient::Recorder::stream_read_callback(pa_stream* stream, size_t nbyte
     if (chunk && nbytes > 0) {
         {
             lock_guard<mutex> lock(recorder->mtx);
-            const uint8_t* chunkPtr = static_cast<const uint8_t*>(chunk);
-            recorder->buffer.insert(recorder->buffer.end(), chunkPtr, chunkPtr + nbytes);
+            const int16_t* chunkPtr = static_cast<const int16_t*>(chunk);
+            // cout << "Recorder read " << nbytes << " bytes." << endl;
+            recorder->buffer.insert(recorder->buffer.end(), chunkPtr, chunkPtr + (nbytes / sizeof(int16_t)));
         }
     }
 
@@ -328,7 +335,7 @@ void MediaClient::Recorder::start() {
 
 }
 
-vector<uint8_t> MediaClient::Recorder::read() {
+vector<int16_t> MediaClient::Recorder::read() {
     pa_threaded_mainloop* loop = MediaClient::loop();
     pa_threaded_mainloop_lock(loop);
     pa_stream_state_t state = pa_stream_get_state(stream);
@@ -339,7 +346,7 @@ vector<uint8_t> MediaClient::Recorder::read() {
             connectStream();
             break;
         case PA_STREAM_CREATING:
-            cout << "Recorder stream is being created." << endl;
+            // cout << "Recorder stream is being created." << endl;
             break;
         case PA_STREAM_READY:
             break;
@@ -354,8 +361,8 @@ vector<uint8_t> MediaClient::Recorder::read() {
             break;
     }
 
-    const size_t chunkSize = 4096;
-    vector<uint8_t> chunk;
+    const size_t chunkSize = 2048;
+    vector<int16_t> chunk;
     {
         lock_guard<mutex> lock(mtx);
         if (buffer.size() >= chunkSize) {

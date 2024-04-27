@@ -57,23 +57,23 @@ void readFile() {
 }
 
 void writeFile() {
-    this_thread::sleep_for(chrono::seconds(10));
+    // this_thread::sleep_for(chrono::seconds(10));
 
-    ofstream file("music_out_2.pcm", ios::binary);
-    if (!file.is_open()) {
-        cerr << "Failed to create file." << endl;
-        return;
-    }
+    // ofstream file("music_out_2.pcm", ios::binary);
+    // if (!file.is_open()) {
+    //     cerr << "Failed to create file." << endl;
+    //     return;
+    // }
 
-    App& app = App::instance();
-    while (true) {
-        vector<uint8_t> chunk = app.getMediaClient()->read();
-        if (chunk.size() > 0) {
-            file.write(reinterpret_cast<const char*>(chunk.data()), chunk.size());
-        }
-    }
+    // App& app = App::instance();
+    // while (true) {
+    //     vector<int8_t> chunk = app.getMediaClient()->read();
+    //     if (chunk.size() > 0) {
+    //         file.write(reinterpret_cast<const char*>(chunk.data()), chunk.size());
+    //     }
+    // }
 
-    file.close();
+    // file.close();
 }
 
 int main(int argc, char *argv[]) {

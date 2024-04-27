@@ -23,9 +23,11 @@ void App::start() {
         mediaClient.write(audio);
     });
     auto t = new thread([this](){
+        //this_thread::sleep_for(chrono::seconds(5));
         while (true) {
             auto data = mediaClient.read();
-            if (data.size() >= 4096) {
+            if (data.size() != 0) {
+                // this_thread::sleep_for(chrono::milliseconds(100));
                 networkClient.sendAudio(data);
             }
         }

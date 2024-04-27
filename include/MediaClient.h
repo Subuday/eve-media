@@ -3,7 +3,7 @@
 #include <vector>
 #include <mutex>
 
-#include <Semaphore.h>
+#include <CountDownLatch.h>
 
 #ifndef MEDIAMANAGER_H
 #define MEDIAMANAGER_H
@@ -17,7 +17,7 @@ public:
 private:
     static pa_threaded_mainloop* _loop;
     
-    Semaphore semaphore;
+    CountDownLatch countDownLatch;
     Recorder* recorder = nullptr;
     Player* player = nullptr;
 
@@ -30,12 +30,13 @@ public:
     ~MediaClient(); 
 
     void prepare();
-    vector<uint8_t> read() const;
+    vector<int16_t> read() const;
     void write(const vector<uint8_t>& data);
 
     class Player {
     private:
         mutex mtx;
+        CountDownLatch& countDownLatch;
         pa_stream* stream;
         atomic<bool> isUnderflow;
         vector<uint8_t> buffer;
@@ -49,7 +50,7 @@ public:
         void handleStreamReadyState();
         bool writeStream(size_t chunk_size);
     public:
-        Player(pa_stream* stream);
+        Player(CountDownLatch& countDownLatch, pa_stream* stream);
 
         void start();
         void write(const vector<uint8_t>& data);
@@ -58,17 +59,18 @@ public:
     class Recorder {
     private:
         mutex mtx;
+        CountDownLatch& countDownLatch;
         pa_stream* stream;
-        vector<uint8_t> buffer;
+        vector<int16_t> buffer;
 
         static void stream_read_callback(pa_stream* s, size_t length, void* userdata);
 
         void connectStream();
     public:
-        Recorder(pa_stream* stream);
+        Recorder(CountDownLatch& countDownLatch, pa_stream* stream);
 
         void start();
-        vector<uint8_t> read();
+        vector<int16_t> read();
     };
 };
 

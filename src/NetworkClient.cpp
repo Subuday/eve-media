@@ -21,11 +21,15 @@ void NetworkClient::prepare() {
     });
 
     ws::error_code ec;
-    ws::client::connection_ptr con = client.get_connection("ws://localhost:8765", ec);
+    // ws::client::connection_ptr con = client.get_connection("wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=44100&channels=2&model=nova-2", ec);
+    // ws::client::connection_ptr con = client.get_connection("ws://192.168.31.100:3000", ec);
+    ws::client::connection_ptr con = client.get_connection("ws://192.168.0.105:3000", ec);
+    // ws::client::connection_ptr con = client.get_connection("wss://conversation-api.up.railway.app", ec);
     if (ec) {
         cout << TAG << "Connection initialization error: " << ec.message() << endl;
         return;
     }
+    con->append_header("Authorization", "Token 2f976957e1bce9964d0730b24b8574a1eba4c4c9");
     cout << TAG << "Connection initialization successful" << endl;
 
     con->set_open_handler(
@@ -88,6 +92,7 @@ void NetworkClient::onReceiveMessage(websocketpp::connection_hdl, ws::client::me
         return;
     }
     string payload = msg->get_payload();
+    cout << TAG << "Received message: " << payload.length() << endl;
     vector<uint8_t> audio(payload.begin(), payload.end());
     onReceiveAudioCallback(audio);
 }
@@ -100,7 +105,10 @@ void NetworkClient::onCloseConnection(ws::connection_hdl hdl) {
     cout << TAG << "Connection is closed" << endl;
 }
 
-void NetworkClient::sendAudio(vector<uint8_t> data) {
+#include <fstream>
+ofstream out("input.pcm", ios::out | ios::binary);
+
+void NetworkClient::sendAudio(vector<int16_t> data) {
     ws::error_code ec;
     ws::client::connection_ptr con = client.get_con_from_hdl(chdl, ec);
     if (ec) {
@@ -108,12 +116,15 @@ void NetworkClient::sendAudio(vector<uint8_t> data) {
         return;
     }
 
-    ec = con->send(data.data(), data.size(), websocketpp::frame::opcode::binary);   
+    ec = con->send(data.data(), data.size() * sizeof(int16_t), websocketpp::frame::opcode::binary);   
     if (ec) {
+        out.close();
         cout << TAG << "Sending audio failed: " << ec.message() << endl;
         return;
-    }
+    } 
 
+    out.write(reinterpret_cast<const char*>(data.data()), data.size() * sizeof(int16_t));
+    out.flush();
     // cout << TAG << "Audio sent" << endl;
 }
 
