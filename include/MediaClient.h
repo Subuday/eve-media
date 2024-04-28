@@ -38,21 +38,17 @@ public:
         mutex mtx;
         CountDownLatch& countDownLatch;
         pa_stream* stream;
-        atomic<bool> isUnderflow;
         vector<uint8_t> buffer;
 
         static void streamStateCallback(pa_stream *s, void *userdata);
-        static void stream_underflow_callback(pa_stream *s, void *userdata);
-        static void stream_write_callback(pa_stream* s, size_t length, void* userdata);
-        static void stream_write_free_callback(void* p);
+        static void streamWriteCallback(pa_stream* s, size_t length, void* userdata);
+        static void streamWriteFreeCallback(void* p);
 
-        void connectStreamIfBufferIsSufficient();
-        void handleStreamReadyState();
-        bool writeStream(size_t chunk_size);
+        void connectStream();
     public:
         Player(CountDownLatch& countDownLatch, pa_stream* stream);
 
-        void start();
+        void prepare();
         void write(const vector<uint8_t>& data);
     };
 
@@ -63,13 +59,13 @@ public:
         pa_stream* stream;
         vector<int8_t> buffer;
 
-        static void stream_read_callback(pa_stream* s, size_t length, void* userdata);
+        static void streamReadCallback(pa_stream* s, size_t length, void* userdata);
 
         void connectStream();
     public:
         Recorder(CountDownLatch& countDownLatch, pa_stream* stream);
 
-        void start();
+        void prepare();
         vector<int8_t> read();
     };
 };
