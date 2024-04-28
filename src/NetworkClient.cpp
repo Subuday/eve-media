@@ -22,8 +22,8 @@ void NetworkClient::prepare() {
 
     ws::error_code ec;
     // ws::client::connection_ptr con = client.get_connection("wss://api.deepgram.com/v1/listen?encoding=linear16&sample_rate=44100&channels=2&model=nova-2", ec);
-    // ws::client::connection_ptr con = client.get_connection("ws://192.168.31.100:3000", ec);
-    ws::client::connection_ptr con = client.get_connection("ws://192.168.0.105:3000", ec);
+    ws::client::connection_ptr con = client.get_connection("ws://192.168.31.100:3000", ec);
+    // ws::client::connection_ptr con = client.get_connection("ws://192.168.0.105:3000", ec);
     // ws::client::connection_ptr con = client.get_connection("wss://conversation-api.up.railway.app", ec);
     if (ec) {
         cout << TAG << "Connection initialization error: " << ec.message() << endl;
@@ -108,7 +108,7 @@ void NetworkClient::onCloseConnection(ws::connection_hdl hdl) {
 #include <fstream>
 ofstream out("input.pcm", ios::out | ios::binary);
 
-void NetworkClient::sendAudio(vector<int16_t> data) {
+void NetworkClient::sendAudio(vector<int8_t> data) {
     ws::error_code ec;
     ws::client::connection_ptr con = client.get_con_from_hdl(chdl, ec);
     if (ec) {
@@ -116,14 +116,14 @@ void NetworkClient::sendAudio(vector<int16_t> data) {
         return;
     }
 
-    ec = con->send(data.data(), data.size() * sizeof(int16_t), websocketpp::frame::opcode::binary);   
+    ec = con->send(data.data(), data.size() * sizeof(int8_t), websocketpp::frame::opcode::binary);   
     if (ec) {
         out.close();
         cout << TAG << "Sending audio failed: " << ec.message() << endl;
         return;
     } 
 
-    out.write(reinterpret_cast<const char*>(data.data()), data.size() * sizeof(int16_t));
+    out.write(reinterpret_cast<const char*>(data.data()), data.size() * sizeof(int8_t));
     out.flush();
     // cout << TAG << "Audio sent" << endl;
 }

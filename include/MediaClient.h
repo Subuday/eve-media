@@ -30,7 +30,7 @@ public:
     ~MediaClient(); 
 
     void prepare();
-    vector<int16_t> read() const;
+    vector<int8_t> read() const;
     void write(const vector<uint8_t>& data);
 
     class Player {
@@ -61,7 +61,7 @@ public:
         mutex mtx;
         CountDownLatch& countDownLatch;
         pa_stream* stream;
-        vector<int16_t> buffer;
+        vector<int8_t> buffer;
 
         static void stream_read_callback(pa_stream* s, size_t length, void* userdata);
 
@@ -70,7 +70,7 @@ public:
         Recorder(CountDownLatch& countDownLatch, pa_stream* stream);
 
         void start();
-        vector<int16_t> read();
+        vector<int8_t> read();
     };
 };
 

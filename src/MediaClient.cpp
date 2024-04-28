@@ -81,12 +81,12 @@ void MediaClient::onContextReady(pa_context *c) {
     countDownLatch.countDown();
 }
 
-vector<int16_t> MediaClient::read() const {
+vector<int8_t> MediaClient::read() const {
     if (recorder != nullptr) {
         return recorder->read();
     } else {
         cerr << "Recorder is not initialised!" << endl;
-        vector<int16_t> data;
+        vector<int8_t> data;
         return data;
     }
 }
@@ -322,9 +322,9 @@ void MediaClient::Recorder::stream_read_callback(pa_stream* stream, size_t nbyte
     if (chunk && nbytes > 0) {
         {
             lock_guard<mutex> lock(recorder->mtx);
-            const int16_t* chunkPtr = static_cast<const int16_t*>(chunk);
+            const int8_t* chunkPtr = static_cast<const int8_t*>(chunk);
             // cout << "Recorder read " << nbytes << " bytes." << endl;
-            recorder->buffer.insert(recorder->buffer.end(), chunkPtr, chunkPtr + (nbytes / sizeof(int16_t)));
+            recorder->buffer.insert(recorder->buffer.end(), chunkPtr, chunkPtr + (nbytes / sizeof(int8_t)));
         }
     }
 
@@ -335,7 +335,7 @@ void MediaClient::Recorder::start() {
 
 }
 
-vector<int16_t> MediaClient::Recorder::read() {
+vector<int8_t> MediaClient::Recorder::read() {
     pa_threaded_mainloop* loop = MediaClient::loop();
     pa_threaded_mainloop_lock(loop);
     pa_stream_state_t state = pa_stream_get_state(stream);
@@ -362,7 +362,7 @@ vector<int16_t> MediaClient::Recorder::read() {
     }
 
     const size_t chunkSize = 2048;
-    vector<int16_t> chunk;
+    vector<int8_t> chunk;
     {
         lock_guard<mutex> lock(mtx);
         if (buffer.size() >= chunkSize) {
