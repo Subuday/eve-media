@@ -65,28 +65,25 @@ void MediaClient::onContextReady(pa_context *c) {
     ss.format = PA_SAMPLE_S16LE;
     ss.channels = 2;
     ss.rate = 44100;
+    pa_stream* rs = pa_stream_new(c, "eva-media-recorder", &ss, nullptr);
+    recorder = new Recorder(countDownLatch, rs);
+    recorder->prepare();
 
     pa_sample_spec pss;
     pss.format = PA_SAMPLE_S16LE;
     pss.channels = 1;
     pss.rate = 16000;
-    
-    pa_stream* rs = pa_stream_new(c, "eva-media-recorder", &ss, nullptr);
     pa_stream* ps = pa_stream_new(c, "eva-media-player", &pss, nullptr);
-
-    recorder = new Recorder(countDownLatch, rs);
     player = new Player(countDownLatch, ps);
-
-    countDownLatch.countDown();
-    countDownLatch.countDown();
+    player->prepare();
 }
 
-vector<int16_t> MediaClient::read() const {
+vector<int8_t> MediaClient::read() const {
     if (recorder != nullptr) {
         return recorder->read();
     } else {
         cerr << "Recorder is not initialised!" << endl;
-        vector<int16_t> data;
+        vector<int8_t> data;
         return data;
     }
 }
@@ -101,8 +98,7 @@ void MediaClient::write(const vector<uint8_t>& data) {
 
 MediaClient::Player::Player(CountDownLatch& countDownLatch, pa_stream* stream) : countDownLatch(countDownLatch), stream(stream) {
     pa_stream_set_state_callback(stream, streamStateCallback, nullptr);
-    pa_stream_set_underflow_callback(stream, stream_underflow_callback, this);
-    pa_stream_set_write_callback(stream, stream_write_callback, this);
+    pa_stream_set_write_callback(stream, streamWriteCallback, this);
 }
 
 void MediaClient::Player::streamStateCallback(pa_stream *s, void *userdata) {
@@ -126,14 +122,7 @@ void MediaClient::Player::streamStateCallback(pa_stream *s, void *userdata) {
     }
 }
 
-void MediaClient::Player::stream_underflow_callback(pa_stream *s, void *userdata) {
-    Player* player = static_cast<Player*>(userdata);
-    player->isUnderflow = true;
-    cerr << "Player stream underflow occurred!" << endl;
-    //TODO: Add trigering of writing
-}
-
-void MediaClient::Player::stream_write_callback(pa_stream* s, size_t length, void* userdata) {
+void MediaClient::Player::streamWriteCallback(pa_stream* s, size_t length, void* userdata) {
     // TODO: ADD Logs and null checks
     Player* player = static_cast<Player*>(userdata);
 
@@ -143,52 +132,49 @@ void MediaClient::Player::stream_write_callback(pa_stream* s, size_t length, voi
         lock_guard<mutex> lock(player->mtx);
         bufferSize = player->buffer.size();
     }
-
-    if (bufferSize == 0) {
-        cerr << "Player buffer is empty, nothing to write." << endl;
-        return;
-    }
-
+    
     size_t chunkSize = min(bufferSize, length);
-    player->writeStream(chunkSize);
-}
-
-void MediaClient::Player::stream_write_free_callback(void* p) {
-    delete[] static_cast<uint8_t*>(p);
-}
-
-bool MediaClient::Player::writeStream(size_t chunkSize) {
+    //TODO: Handle length = 0? 
     if (chunkSize == 0) {
-        return false;
+        chunkSize = length;
     }
 
+    //TODO: Recheck this code if it is corrects
     uint8_t* chunk = new uint8_t[chunkSize];
-    {
-        lock_guard<mutex> lock(mtx);
-        if (buffer.size() < chunkSize) {
-            std::cerr << "Player has insufficient data in buffer." << std::endl;
-            return false;
+    memset(chunk, 0, chunkSize);  
+    if (bufferSize > 0) {
+        {
+            lock_guard<mutex> lock(player->mtx);
+            if (player->buffer.size() >= chunkSize) {
+                copy_n(player->buffer.begin(), chunkSize, chunk);
+            } else {
+                // std::cerr << "Player has insufficient data in buffer." << std::endl;
+            }
         }
-        copy_n(buffer.begin(), chunkSize, chunk);
     }
 
-    int result = pa_stream_write_ext_free(stream, chunk, chunkSize, stream_write_free_callback, chunk, 0, PA_SEEK_RELATIVE);
+    int result = pa_stream_write_ext_free(s, chunk, chunkSize, streamWriteFreeCallback, chunk, 0, PA_SEEK_RELATIVE);
 
     if (result == 0) {
-        {
-            lock_guard<mutex> lock(mtx);
-            buffer.erase(buffer.begin(), buffer.begin() + chunkSize);
+        if (bufferSize > 0) {
+            {
+                lock_guard<mutex> lock(player->mtx);
+                player->buffer.erase(player->buffer.begin(), player->buffer.begin() + chunkSize);
+            }
         }
         std::cout << "Player succeeded to write to stream " << chunkSize << " bytes" << std::endl;
     } else {
         std::cerr << "Player failed to write to stream: " << pa_strerror(result) << std::endl;
     }
-
-    return result == 0;
 }
 
-void MediaClient::Player::start() {
+void MediaClient::Player::streamWriteFreeCallback(void* p) {
+    delete[] static_cast<uint8_t*>(p);
+}
 
+void MediaClient::Player::prepare() {
+    connectStream();
+    countDownLatch.countDown();
 }
 
 void MediaClient::Player::write(const vector<uint8_t>& data) {
@@ -196,45 +182,19 @@ void MediaClient::Player::write(const vector<uint8_t>& data) {
     {
         lock_guard<mutex> lock(mtx);
         buffer.insert(buffer.end(), data.begin(), data.end());
-    }
-
-    pa_threaded_mainloop* loop = MediaClient::loop();
-    pa_threaded_mainloop_lock(loop);
-    pa_stream_state_t state = pa_stream_get_state(stream);
-    pa_threaded_mainloop_unlock(loop);
-
-    switch (state) {
-        case PA_STREAM_UNCONNECTED:
-            connectStreamIfBufferIsSufficient();
-            break;
-        case PA_STREAM_CREATING:
-            cout << "Player stream is being created." << endl;
-            break;
-        case PA_STREAM_READY:
-            handleStreamReadyState();
-            break;
-        case PA_STREAM_FAILED:
-            cerr << "Player stream has failed." << endl;
-            break;
-        case PA_STREAM_TERMINATED:
-            cerr << "Player stream has been terminated." << endl;
-            break;
-        default:
-            cerr << "Player stream is in unknown state." << endl;
-            break;
     }   
 }
 
-void MediaClient::Player::connectStreamIfBufferIsSufficient() {
+void MediaClient::Player::connectStream() {
     cout << "Player tries connecting stream!" << endl;
 
-    pa_threaded_mainloop* loop = MediaClient::loop();
+    // pa_threaded_mainloop* loop = MediaClient::loop();
 
-    pa_threaded_mainloop_lock(loop);
+    // pa_threaded_mainloop_lock(loop);
 
     pa_stream_state_t state = pa_stream_get_state(stream);
     if (state != PA_STREAM_UNCONNECTED) {
-        pa_threaded_mainloop_unlock(loop);
+        // pa_threaded_mainloop_unlock(loop);
         return;
     }
 
@@ -244,11 +204,6 @@ void MediaClient::Player::connectStreamIfBufferIsSufficient() {
         bufferSize = buffer.size();
     }
 
-    if (bufferSize < 44100) {
-        pa_threaded_mainloop_unlock(loop);
-        return;
-    }
-
     int result = pa_stream_connect_playback(stream, nullptr, nullptr, PA_STREAM_NOFLAGS, nullptr, nullptr);
     if (result == 0) {
         cout << "Player succeeded to connect stream!" << endl;
@@ -256,60 +211,14 @@ void MediaClient::Player::connectStreamIfBufferIsSufficient() {
         cerr << "Player failed to connect stream!" << endl;
     }
 
-    pa_threaded_mainloop_unlock(loop);
-}
-
-void MediaClient::Player::handleStreamReadyState() {
-    if (isUnderflow) {
-        pa_threaded_mainloop* loop = MediaClient::loop();
-
-        pa_threaded_mainloop_lock(loop);
-
-        if (!isUnderflow) {
-            pa_threaded_mainloop_unlock(loop);
-            return;
-        }
-
-        size_t bufferSize;
-        {
-            lock_guard<mutex> lock(mtx);
-            bufferSize = buffer.size();
-        }
-        if (bufferSize < 44100 * 10) {
-            pa_threaded_mainloop_unlock(loop);
-            return;
-        }
-
-        pa_stream_state_t state = pa_stream_get_state(stream);
-        if (state != PA_STREAM_READY) {
-            pa_threaded_mainloop_unlock(loop);
-            return;
-        }
-
-        size_t streamWritableSize = pa_stream_writable_size(stream);
-        if (streamWritableSize == (size_t) - 1) {
-            cerr << "Player failed to  query writable size during underflow handling." << endl;
-            pa_threaded_mainloop_unlock(loop);
-            return;
-        }
-
-        size_t chunkSize = std::min(streamWritableSize, bufferSize);
-
-        bool result = writeStream(chunkSize);
-
-        if (result) {
-            isUnderflow = true;
-        }
-
-        pa_threaded_mainloop_unlock(loop);
-    }
+    // pa_threaded_mainloop_unlock(loop);
 }
 
 MediaClient::Recorder::Recorder(CountDownLatch& countDownLatch, pa_stream* stream) : countDownLatch(countDownLatch), stream(stream) {
-    pa_stream_set_read_callback(stream, stream_read_callback, this);
+    pa_stream_set_read_callback(stream, streamReadCallback, this);
 }
 
-void MediaClient::Recorder::stream_read_callback(pa_stream* stream, size_t nbytes, void* userdata) {
+void MediaClient::Recorder::streamReadCallback(pa_stream* stream, size_t nbytes, void* userdata) {
     Recorder* recorder = static_cast<Recorder*>(userdata);
     
     const void* chunk;
@@ -322,47 +231,23 @@ void MediaClient::Recorder::stream_read_callback(pa_stream* stream, size_t nbyte
     if (chunk && nbytes > 0) {
         {
             lock_guard<mutex> lock(recorder->mtx);
-            const int16_t* chunkPtr = static_cast<const int16_t*>(chunk);
+            const int8_t* chunkPtr = static_cast<const int8_t*>(chunk);
             // cout << "Recorder read " << nbytes << " bytes." << endl;
-            recorder->buffer.insert(recorder->buffer.end(), chunkPtr, chunkPtr + (nbytes / sizeof(int16_t)));
+            recorder->buffer.insert(recorder->buffer.end(), chunkPtr, chunkPtr + (nbytes / sizeof(int8_t)));
         }
     }
 
     pa_stream_drop(stream);
 }
 
-void MediaClient::Recorder::start() {
-
+void MediaClient::Recorder::prepare() {
+    connectStream();
+    countDownLatch.countDown();
 }
 
-vector<int16_t> MediaClient::Recorder::read() {
-    pa_threaded_mainloop* loop = MediaClient::loop();
-    pa_threaded_mainloop_lock(loop);
-    pa_stream_state_t state = pa_stream_get_state(stream);
-    pa_threaded_mainloop_unlock(loop);
-
-    switch (state) {
-        case PA_STREAM_UNCONNECTED:
-            connectStream();
-            break;
-        case PA_STREAM_CREATING:
-            // cout << "Recorder stream is being created." << endl;
-            break;
-        case PA_STREAM_READY:
-            break;
-        case PA_STREAM_FAILED:
-            cerr << "Recorder stream has failed." << endl;
-            break;
-        case PA_STREAM_TERMINATED:
-            cerr << "Recorder stream has been terminated." << endl;
-            break;
-        default:
-            cerr << "Recorder stream is in unknown state." << endl;
-            break;
-    }
-
+vector<int8_t> MediaClient::Recorder::read() {
     const size_t chunkSize = 2048;
-    vector<int16_t> chunk;
+    vector<int8_t> chunk;
     {
         lock_guard<mutex> lock(mtx);
         if (buffer.size() >= chunkSize) {
@@ -375,13 +260,13 @@ vector<int16_t> MediaClient::Recorder::read() {
 }
 
 void MediaClient::Recorder::connectStream() {
-    pa_threaded_mainloop* loop = MediaClient::loop();
+    // pa_threaded_mainloop* loop = MediaClient::loop();
 
-    pa_threaded_mainloop_lock(loop);
+    // pa_threaded_mainloop_lock(loop);
 
     pa_stream_state_t state = pa_stream_get_state(stream);
     if (state != PA_STREAM_UNCONNECTED) {
-        pa_threaded_mainloop_unlock(loop);
+        // pa_threaded_mainloop_unlock(loop);
         return;
     }
 
@@ -392,7 +277,7 @@ void MediaClient::Recorder::connectStream() {
         cerr << "Recorder failed to connect stream!" << endl;
     }
 
-    pa_threaded_mainloop_unlock(loop);
+    // pa_threaded_mainloop_unlock(loop);
 }
 
 MediaClient::~MediaClient() {}

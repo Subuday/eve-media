@@ -47,6 +47,6 @@ public:
     NetworkClient();
     void prepare();
     void setOnReceiveAudioCallback(function<void(vector<uint8_t>)> callback);
-    void sendAudio(vector<int16_t> data);
+    void sendAudio(vector<int8_t> data);
     ~NetworkClient();
 };
