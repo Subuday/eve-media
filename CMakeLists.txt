@@ -4,36 +4,19 @@ project(eve-media)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-option(BUILD_PYTHON_BINDINGS "Build Python Bindings" OFF)
-
 add_definitions(-DNO_TLS)
 
 include_directories(lib/websocketpp)
 
-add_subdirectory(lib/pybind11)
-
-if(BUILD_PYTHON_BINDINGS)
-    pybind11_add_module(
-        eve_media
-        src/main.cpp
-        src/App.cpp
-        src/NetworkClient.cpp
-        src/MediaClient.cpp
-        src/python_bindings.cpp
-        src/utils/Semaphore.cpp
-        src/utils/CountDownLatch.cpp
-    )
-else()
-    add_executable(
-        eve_media
-        src/main.cpp
-        src/App.cpp
-        src/NetworkClient.cpp
-        src/MediaClient.cpp
-        src/utils/Semaphore.cpp
-        src/utils/CountDownLatch.cpp
-    )
-endif()
+add_executable(
+    eve_media
+    src/main.cpp
+    src/App.cpp
+    src/NetworkClient.cpp
+    src/MediaClient.cpp
+    src/utils/Semaphore.cpp
+    src/utils/CountDownLatch.cpp
+)
 
 target_include_directories(eve_media PUBLIC include)
 
