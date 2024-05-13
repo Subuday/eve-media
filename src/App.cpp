@@ -36,10 +36,20 @@ void App::start() {
 
     cout << "App started" << endl;
 
-
-    t->join();
-
     //TODO: Clean up of pulse audio
+}
+
+void App::run() {
+    start();
+    while (isCancelled.load()) {
+        unique_lock<mutex> lock(mtx);
+        cv.wait(lock, [this] { return !q.empty(); });
+        function<void()> cb = q.front();
+        q.pop();
+        lock.unlock();
+
+        cb();
+    }
 }
 
 MediaClient* App::getMediaClient() {

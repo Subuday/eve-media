@@ -78,7 +78,7 @@ void writeFile() {
 
 int main(int argc, char *argv[]) {
     App& app = App::instance();
-    app.start();
+    app.run();
 
     // thread pt(readFile);
     // thread rt(writeFile);

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <atomic>
 #include <functional>  
 #include <pulse/pulseaudio.h>
@@ -8,13 +10,15 @@
 #include <thread>
 #include <queue>
 
-#ifndef MAIN_H
-#define MAIN_H
-
 using namespace std; 
 
 class App {
     private:
+        mutex mtx;
+        condition_variable cv;
+        queue<function<void()>> q;
+        atomic<bool> isCancelled;
+        
         atomic<pa_threaded_mainloop*> loop;
         NetworkClient networkClient;
         MediaClient mediaClient;
@@ -26,8 +30,7 @@ class App {
 
         App();
         void start();
+        void run();
         MediaClient* getMediaClient();
         ~App();
 };
-
-#endif
