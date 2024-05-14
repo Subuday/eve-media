@@ -3,6 +3,8 @@
 #include <atomic>
 #include <functional>  
 #include <pulse/pulseaudio.h>
+#include <EyesView.h>
+#include <Surface.h>
 #include <NetworkClient.h>
 #include <MediaClient.h>
 #include <Semaphore.h>
@@ -20,6 +22,8 @@ class App {
         atomic<bool> isCancelled;
         
         atomic<pa_threaded_mainloop*> loop;
+        EyesView view;
+        Surface surface;
         NetworkClient networkClient;
         MediaClient mediaClient;
 

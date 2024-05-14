@@ -4,18 +4,25 @@
 #include <thread>
 #include <pulse/pulseaudio.h>
 
+volatile bool programRunning = true;
+
+void MarkProgramQuitting()
+{
+  programRunning = false;
+  // post([]{});
+}
+
 App& App::instance() {
     static App instance;
     return instance;
 }
 
-App::App() {
-
-}
+App::App() : surface(view) {}
 
 void App::start() {
     //TODO: Handle error
     // Make volitile
+    surface.init();
     networkClient.prepare();
     mediaClient.prepare();
 
