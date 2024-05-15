@@ -1,19 +1,17 @@
 #include <cassert> 
-#include <string>
 #include <stb_image.h>
 #include <EyesView.h>
 
-using namespace std;
-
 // Assert NONE state
 void EyesView::updateState(EyesState state) {
+    frameIndex = 0;
     this->state = state;
 }
 
-void EyesView::drawOpeningAnimationFrame(int width, int height, uint16_t* buffer) {
+void EyesView::drawFrame(int width, int height, uint16_t* buffer, string path, int lastFrameIndex) {
     // TODO: Handle error
-    string path = "../lib/eve-lcd-driver/res/out/frame_" + to_string(frameIndex) + ".bmp";
-    unsigned char* data = stbi_load(path.c_str(), &width, &height, &frameChannels, 0);
+    string framePath = "../lib/eve-lcd-driver/res" + path + "/frame_" + to_string(frameIndex) + ".bmp";
+    unsigned char* data = stbi_load(framePath.c_str(), &width, &height, &frameChannels, 0);
 
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
@@ -32,6 +30,12 @@ void EyesView::drawOpeningAnimationFrame(int width, int height, uint16_t* buffer
     }
 
     stbi_image_free(data);
+
+    if (frameIndex == lastFrameIndex) {
+        frameIndex = 0;
+    } else {
+        frameIndex += 1;
+    }
 }
 
 void EyesView::draw(int width, int height, uint16_t* buffer) {
@@ -39,10 +43,10 @@ void EyesView::draw(int width, int height, uint16_t* buffer) {
         case EyesState::NONE:
             return;
         case EyesState::OPENING:
-            drawOpeningAnimationFrame(width, height, buffer);
+            drawFrame(width, height, buffer, "/out", 90);
             break;
         case EyesState::CLOSING:
-            // drawClosing(width, height, buffer);
+            drawFrame(width, height, buffer, "/thinking", 180);
             break;
         default:
             assert(false);

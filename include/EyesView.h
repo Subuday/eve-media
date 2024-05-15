@@ -2,6 +2,9 @@
 
 #include <View.hpp>
 #include <EyesState.h>
+#include <string>
+
+using namespace std;
 
 class EyesView: public View {
     private:
@@ -11,7 +14,7 @@ class EyesView: public View {
 
         int frameIndex = 0;
 
-        void drawOpeningAnimationFrame(int width, int height, uint16_t* buffer);
+        void drawFrame(int width, int height, uint16_t* buffer, string path, int lastFrameIndex);
     public:
         void updateState(EyesState state);
         void draw(int width, int height, uint16_t* buffer) override;
