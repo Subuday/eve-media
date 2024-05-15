@@ -1,9 +1,19 @@
+#include <cassert> 
+#include <string>
 #include <stb_image.h>
 #include <EyesView.h>
 
-void EyesView::draw(int width, int height, uint16_t* buffer) {
+using namespace std;
+
+// Assert NONE state
+void EyesView::updateState(EyesState state) {
+    this->state = state;
+}
+
+void EyesView::drawOpeningAnimationFrame(int width, int height, uint16_t* buffer) {
     // TODO: Handle error
-    unsigned char* data = stbi_load("../lib/eve-lcd-driver/res/smiling/frame_10.bmp", &width, &height, &frameChannels, 0);
+    string path = "../lib/eve-lcd-driver/res/out/frame_" + to_string(frameIndex) + ".bmp";
+    unsigned char* data = stbi_load(path.c_str(), &width, &height, &frameChannels, 0);
 
     for (int y = 0; y < height; ++y) {
         for (int x = 0; x < width; ++x) {
@@ -22,4 +32,21 @@ void EyesView::draw(int width, int height, uint16_t* buffer) {
     }
 
     stbi_image_free(data);
+}
+
+void EyesView::draw(int width, int height, uint16_t* buffer) {
+    switch (state) {
+        case EyesState::NONE:
+            return;
+        case EyesState::OPENING:
+            drawOpeningAnimationFrame(width, height, buffer);
+            break;
+        case EyesState::CLOSING:
+            // drawClosing(width, height, buffer);
+            break;
+        default:
+            assert(false);
+            // drawDefault(width, height, buffer);
+            break;
+    }
 }

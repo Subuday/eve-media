@@ -232,6 +232,7 @@ add_executable(
     src/main.cpp
     src/App.cpp
 	src/EyesView.cpp
+	src/ManageEyesStateUseCase.cpp
     src/NetworkClient.cpp
     src/MediaClient.cpp
     src/utils/Semaphore.cpp

@@ -17,12 +17,15 @@ App& App::instance() {
     return instance;
 }
 
-App::App() : surface(view) {}
+App::App() : surface(view), manageEyesStateUseCase(view) {}
 
 void App::start() {
     //TODO: Handle error
     // Make volitile
     surface.init();
+
+    manageEyesStateUseCase.openEyes();
+
     networkClient.prepare();
     mediaClient.prepare();
 

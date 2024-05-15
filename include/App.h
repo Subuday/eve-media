@@ -7,6 +7,7 @@
 #include <Surface.h>
 #include <NetworkClient.h>
 #include <MediaClient.h>
+#include <ManageEyesStateUseCase.h>
 #include <Semaphore.h>
 #include <mutex>
 #include <thread>
@@ -22,8 +23,9 @@ class App {
         atomic<bool> isCancelled;
         
         atomic<pa_threaded_mainloop*> loop;
-        EyesView view;
         Surface surface;
+        EyesView view;
+        ManageEyesStateUseCase manageEyesStateUseCase;
         NetworkClient networkClient;
         MediaClient mediaClient;
 
