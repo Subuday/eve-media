@@ -24,6 +24,11 @@ void App::start() {
     // Make volitile
     surface.init();
 
+    shutdownListenerUseCase.callback([this] {
+        // Check thread that is called
+        manageEyesStateUseCase.closeEyes();
+    });
+
     manageEyesStateUseCase.openEyes();
 
     networkClient.prepare();
@@ -51,6 +56,7 @@ void App::start() {
 
 void App::run() {
     start();
+    // TODO: Finish unfinished tasks
     while (isCancelled.load()) {
         unique_lock<mutex> lock(mtx);
         cv.wait(lock, [this] { return !q.empty(); });
