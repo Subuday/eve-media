@@ -14,7 +14,7 @@ class EyesView: public View {
 
         int frameIndex = 0;
 
-        void drawFrame(int width, int height, uint16_t* buffer, string path, int lastFrameIndex);
+        void drawFrame(int width, int height, uint16_t* buffer, string animation, int frames);
     public:
         void updateState(EyesState state);
         void draw(int width, int height, uint16_t* buffer) override;

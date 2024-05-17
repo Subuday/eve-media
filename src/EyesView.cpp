@@ -8,9 +8,9 @@ void EyesView::updateState(EyesState state) {
     this->state = state;
 }
 
-void EyesView::drawFrame(int width, int height, uint16_t* buffer, string path, int lastFrameIndex) {
+void EyesView::drawFrame(int width, int height, uint16_t* buffer, string animation, int frames) {
     // TODO: Handle error
-    string framePath = "../lib/eve-lcd-driver/res" + path + "/frame_" + to_string(frameIndex) + ".bmp";
+    string framePath = "../lib/eve-lcd-driver/res/" + animation + "/frame_" + to_string(frameIndex) + ".png";
     unsigned char* data = stbi_load(framePath.c_str(), &width, &height, &frameChannels, 0);
 
     for (int y = 0; y < height; ++y) {
@@ -31,8 +31,8 @@ void EyesView::drawFrame(int width, int height, uint16_t* buffer, string path, i
 
     stbi_image_free(data);
 
-    if (frameIndex == lastFrameIndex) {
-        frameIndex = 0;
+    if (frameIndex == frames - 1) {
+        // frameIndex = 0;
     } else {
         frameIndex += 1;
     }
@@ -43,10 +43,28 @@ void EyesView::draw(int width, int height, uint16_t* buffer) {
         case EyesState::NONE:
             return;
         case EyesState::OPENING:
-            drawFrame(width, height, buffer, "/out", 90);
+            drawFrame(width, height, buffer, "opening", 362);
+            break;
+        case EyesState::BLINKING:
+            drawFrame(width, height, buffer, "blinking", 363);
+            break;
+        case EyesState::THINKING:
+            drawFrame(width, height, buffer, "thinking", 398);
+            break;
+        case EyesState::SPEAKING:
+            drawFrame(width, height, buffer, "speaking", 333);
+            break;
+        case EyesState::SMILING:
+            drawFrame(width, height, buffer, "smiling", 333);
+            break;
+        case EyesState::DVD:
+            drawFrame(width, height, buffer, "dvd", 363);
+            break;
+        case EyesState::JUMPING:
+            drawFrame(width, height, buffer, "jumping", 363);
             break;
         case EyesState::CLOSING:
-            drawFrame(width, height, buffer, "/thinking", 180);
+            drawFrame(width, height, buffer, "closing", 363);
             break;
         default:
             assert(false);
