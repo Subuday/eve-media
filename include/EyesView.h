@@ -2,7 +2,6 @@
 
 #include <View.hpp>
 #include <EyesState.h>
-#include <Timer.h>
 #include <string>
 #include <functional>
 
