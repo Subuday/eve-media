@@ -94,7 +94,7 @@ void EyesView::drawFrame(EyesState statem, int width, int height, uint16_t* buff
 }
 
 void EyesView::draw(int width, int height, uint16_t* buffer) {
-    if (frameIndex == 0) {
+    if (frameIndex == 0 && onAnimationStartCallback) {
         onAnimationStartCallback();
     }
     
