@@ -7,7 +7,10 @@
 #include <Surface.h>
 #include <NetworkClient.h>
 #include <MediaClient.h>
+#include <MicAudioStreamingUseCase.h>
+#include <MicButtonListenerUseCase.h>
 #include <ManageEyesStateUseCase.h>
+#include <SpeakerAudioStreamingUseCase.h>
 #include <ShutdownListenerUseCase.h>
 #include <Semaphore.h>
 #include <mutex>
@@ -26,8 +29,12 @@ class App {
         atomic<pa_threaded_mainloop*> loop;
         Surface surface;
         EyesView view;
+
         ShutdownListenerUseCase shutdownListenerUseCase;
         ManageEyesStateUseCase manageEyesStateUseCase;
+        MicAudioStreamingUseCase micAudioStreamingUseCase;
+        SpeakerAudioStreamingUseCase speakerAudioStreamingUseCase;
+        
         NetworkClient networkClient;
         MediaClient mediaClient;
 

@@ -232,8 +232,12 @@ add_executable(
     src/main.cpp
     src/App.cpp
 	src/EyesView.cpp
+	src/MicAudioStreamingUseCase.cpp
+	src/SpeakerAudioStreamingUseCase.cpp
 	src/ManageEyesStateUseCase.cpp
+	src/MicButtonListenerUseCase.cpp
 	src/ShutdownListenerUseCase.cpp
+	src/SignalListenerUseCase.cpp
     src/NetworkClient.cpp
     src/MediaClient.cpp
     src/utils/Semaphore.cpp

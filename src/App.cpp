@@ -1,6 +1,7 @@
 #include <App.h>
 #include <iostream>
 #include <MediaClient.h>
+#include <SignalListenerUseCase.h>
 #include <thread>
 #include <pulse/pulseaudio.h>
 
@@ -17,12 +18,32 @@ App& App::instance() {
     return instance;
 }
 
-App::App() : surface(view), manageEyesStateUseCase(view) {}
+App::App() : isCancelled(false), surface(view), manageEyesStateUseCase(view), micAudioStreamingUseCase(mediaClient, networkClient), speakerAudioStreamingUseCase(mediaClient, networkClient) {}
 
 void App::start() {
     //TODO: Handle error
     // Make volitile
     surface.init();
+
+    SignalListenerUseCase::callbacks({
+        [this] { this->manageEyesStateUseCase.openEyes(); },
+        [this] { this->manageEyesStateUseCase.blink(); },
+        [this] { this->manageEyesStateUseCase.think(); },
+        [this] { this->manageEyesStateUseCase.speak(); },
+        [this] { this->manageEyesStateUseCase.trigger(0); },
+        [this] { this->manageEyesStateUseCase.trigger(1); },
+        [this] { this->manageEyesStateUseCase.trigger(2); },
+        [this] { this->manageEyesStateUseCase.closeEyes(); }
+    });
+    SignalListenerUseCase sluc;
+
+    MicButtonListenerUseCase::callback([this](bool isPressed) { 
+        // TODO: Check thread that is called
+        if (isPressed) {
+            manageEyesStateUseCase.speak();
+        }
+    });
+    MicButtonListenerUseCase mcblc;
 
     shutdownListenerUseCase.callback([this] {
         // Check thread that is called
@@ -31,22 +52,8 @@ void App::start() {
 
     manageEyesStateUseCase.openEyes();
 
-    networkClient.prepare();
-    mediaClient.prepare();
-
-    networkClient.setOnReceiveAudioCallback([this](vector<uint8_t> audio) {
-        mediaClient.write(audio);
-    });
-    auto t = new thread([this](){
-        //this_thread::sleep_for(chrono::seconds(5));
-        while (true) {
-            auto data = mediaClient.read();
-            if (data.size() != 0) {
-                // this_thread::sleep_for(chrono::milliseconds(100));
-                networkClient.sendAudio(data);
-            }
-        }
-    });
+    // networkClient.prepare();
+    // mediaClient.prepare();
 
 
     cout << "App started" << endl;
@@ -57,7 +64,7 @@ void App::start() {
 void App::run() {
     start();
     // TODO: Finish unfinished tasks
-    while (isCancelled.load()) {
+    while (!isCancelled.load()) {
         unique_lock<mutex> lock(mtx);
         cv.wait(lock, [this] { return !q.empty(); });
         function<void()> cb = q.front();
