@@ -19,7 +19,16 @@ if (SINGLE_CORE_BOARD)
 endif()
 
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -marm -mabi=aapcs-linux -mhard-float -mfloat-abi=hard -mlittle-endian -mtls-dialect=gnu2 -funsafe-math-optimizations")
+
+EXECUTE_PROCESS( COMMAND uname -m COMMAND tr -d '\n' OUTPUT_VARIABLE ARCHITECTURE )
+message( STATUS "Architecture: ${ARCHITECTURE}" )
+
+if (NOT ${ARCHITECTURE} STREQUAL "aarch64")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -marm -mabi=aapcs-linux -mhard-float -mfloat-abi=hard -mlittle-endian -mtls-dialect=gnu2 -funsafe-math-optimizations")
+else()
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mlittle-endian -funsafe-math-optimizations -mstrict-align")
+endif() 
+
 
 option(USE_VCSM_CMA "Map Memory from CPU instead of GPU" ${DEFAULT_USE_VCSM_CMA})
 if (USE_VCSM_CMA)
