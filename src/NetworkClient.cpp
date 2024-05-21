@@ -59,6 +59,7 @@ void NetworkClient::prepare() {
 }
 
 void NetworkClient::setOnReceiveAudioCallback(function<void(vector<uint8_t>)> callback) {
+    lock_guard<mutex> lock(mtx);
     onReceiveAudioCallback = callback;
 }
 
@@ -88,13 +89,18 @@ void NetworkClient::onOpenConnection(ws::connection_hdl hdl) {
 }
 
 void NetworkClient::onReceiveMessage(websocketpp::connection_hdl, ws::client::message_ptr msg) {
-    if (!onReceiveAudioCallback) {
+    function<void(vector<uint8_t>)> callback;
+    {
+        lock_guard<mutex> lock(mtx);
+        callback = onReceiveAudioCallback;
+    }
+    if (!callback) {
         return;
     }
     string payload = msg->get_payload();
     cout << TAG << "Received message: " << payload.length() << endl;
     vector<uint8_t> audio(payload.begin(), payload.end());
-    onReceiveAudioCallback(audio);
+    callback(audio);
 }
 
 void NetworkClient::onFailConnection(ws::connection_hdl hdl) {

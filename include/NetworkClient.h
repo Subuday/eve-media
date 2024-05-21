@@ -9,6 +9,7 @@
 #endif
 #include <websocketpp/client.hpp>
 #include <memory>
+#include <mutex>
 
 #include <Semaphore.h>
 
@@ -31,6 +32,7 @@ class NetworkClient {
 private:
     static const string TAG;  
 
+    mutex mtx;
     ws::client client;
     thread* clientThread;
     Semaphore semaphore;
