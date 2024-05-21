@@ -27,6 +27,10 @@ class App {
         atomic<bool> isCancelled;
         
         atomic<pa_threaded_mainloop*> loop;
+        MediaClient mediaClient;
+        
+        NetworkClient networkClient;
+
         Surface surface;
         EyesView view;
 
@@ -34,9 +38,6 @@ class App {
         ManageEyesStateUseCase manageEyesStateUseCase;
         MicAudioStreamingUseCase micAudioStreamingUseCase;
         SpeakerAudioStreamingUseCase speakerAudioStreamingUseCase;
-        
-        NetworkClient networkClient;
-        MediaClient mediaClient;
 
          atomic<bool> firstCallReceived{false};
 
