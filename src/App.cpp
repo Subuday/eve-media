@@ -52,7 +52,7 @@ void App::start() {
 
     manageEyesStateUseCase.openEyes();
 
-    // networkClient.prepare();
+    networkClient.start();
     // mediaClient.prepare();
 
 
