@@ -4,7 +4,11 @@ const string Session::TAG = "[Session] ";
 
 Session::Session(net::io_context& ioc, ssl::context& ctx): 
     resolver(net::make_strand(ioc)), 
+    #ifndef NO_TLS
     ws(net::make_strand(ioc), ctx),
+    #else
+    ws(net::make_strand(ioc)),
+    #endif
     strand(net::make_strand(ioc)) {
         ws.binary(true);
     }
@@ -72,16 +76,19 @@ void Session::onConnect(beast::error_code ec, tcp::resolver::results_type::endpo
         return;
     }
 
+    #ifndef NO_TLS
     if (!SSL_set_tlsext_host_name(ws.next_layer().native_handle(), host.c_str())) {
         ec = beast::error_code(static_cast<int>(::ERR_get_error()), net::error::get_ssl_category());
         return;
     }
+    #endif
 
     // Update the host_ string. This will provide the value of the
     // Host HTTP header during the WebSocket handshake.
     // See https://tools.ietf.org/html/rfc7230#section-5.4
     host += ':' + std::to_string(ep.port());
     
+    #ifndef NO_TLS
     // Perform the SSL handshake
     ws.next_layer().async_handshake(
         ssl::stream_base::client,
@@ -90,8 +97,19 @@ void Session::onConnect(beast::error_code ec, tcp::resolver::results_type::endpo
             shared_from_this()
         )
     );
+    #else
+    ws.async_handshake(
+        host,
+        "/v1/listen?encoding=linear16&sample_rate=44100&channels=2&model=nova-2",
+        beast::bind_front_handler(
+            &Session::onHandshake,
+            shared_from_this()
+        )
+    );
+    #endif
 }
 
+#ifndef NO_TLS
 void Session::onSslHandshake(beast::error_code ec) {
     if (ec) {
         cout << TAG << "SSL handshake error: " << ec.message() << endl;
@@ -106,7 +124,7 @@ void Session::onSslHandshake(beast::error_code ec) {
     ws.set_option(websocket::stream_base::timeout::suggested(beast::role_type::client));
 
     ws.set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
-        req.set(http::field::authorization, "Token");
+        req.set(http::field::authorization, "Token ");
     }));
 
     // Perform the websocket handshake
@@ -119,6 +137,7 @@ void Session::onSslHandshake(beast::error_code ec) {
         )
     );
 }
+#endif
 
 void Session::onHandshake(beast::error_code ec) {
     if (ec) {

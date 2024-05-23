@@ -4,7 +4,7 @@ project(eve-media)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# add_definitions(-DNO_TLS)
+add_definitions(-DNO_TLS)
 
 set(DEFAULT_TO_SINGLE_CORE_BOARD OFF)
 set(DEFAULT_TO_ARMV6Z OFF)

@@ -20,15 +20,21 @@ private:
     static const string TAG;
 
     tcp::resolver resolver;
+    #ifndef NO_TLS
     websocket::stream<beast::ssl_stream<beast::tcp_stream>> ws;
+    #else
+    websocket::stream<beast::tcp_stream> ws;
+    #endif
     net::strand<net::io_context::executor_type> strand;
+    string host;
     beast::flat_buffer buffer;
-    std::string host;
     queue<vector<int8_t>> q;
 
     void onResolve(beast::error_code ec, tcp::resolver::results_type results);
     void onConnect(beast::error_code ec, tcp::resolver::results_type::endpoint_type ep);
+    #ifndef NO_TLS
     void onSslHandshake(beast::error_code ec);
+    #endif
     void onHandshake(beast::error_code ec);
     void onRead(beast::error_code ec, size_t bytes_transferred);
     void onWrite(beast::error_code ec, std::size_t);

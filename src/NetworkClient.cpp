@@ -7,7 +7,7 @@ NetworkClient::NetworkClient() : ctx(ssl::context::tlsv12_client) {}
 
 void NetworkClient::start() {
     session = make_shared<Session>(ioc, ctx);
-    session->run("api.deepgram.com", "443");
+    session->run("192.168.31.100", "3000");
     worker = thread([this](){ ioc.run(); });
 }
 
