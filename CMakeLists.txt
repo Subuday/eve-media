@@ -4,7 +4,7 @@ project(eve-media)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-add_definitions(-DNO_TLS)
+# add_definitions(-DNO_TLS)
 
 set(DEFAULT_TO_SINGLE_CORE_BOARD OFF)
 set(DEFAULT_TO_ARMV6Z OFF)
@@ -213,6 +213,7 @@ else()
 endif()
 
 include_directories(
+	lib/bcm2835
     lib/eve-lcd-driver
     lib/eve-lcd-driver/src 
     lib/eve-lcd-driver/src/config
@@ -225,6 +226,7 @@ include_directories(
 )
 
 file(GLOB DIR_SRCS 	*
+		lib/bcm2835/*
 		lib/eve-lcd-driver/src/*
 		lib/eve-lcd-driver/src/display/*
 		lib/eve-lcd-driver/src/lcd_driver/*
@@ -247,6 +249,7 @@ add_executable(
 	src/ShutdownListenerUseCase.cpp
 	src/SignalListenerUseCase.cpp
 	src/Session.cpp
+	src/ButtonClient.cpp
     src/NetworkClient.cpp
     src/MediaClient.cpp
     src/utils/Semaphore.cpp
