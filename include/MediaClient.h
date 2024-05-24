@@ -1,7 +1,9 @@
 #include <atomic>
+#include <functional>
 #include <pulse/pulseaudio.h>
 #include <vector>
 #include <mutex>
+#include <memory>
 
 #include <CountDownLatch.h>
 
@@ -18,55 +20,59 @@ private:
     static pa_threaded_mainloop* _loop;
     
     CountDownLatch countDownLatch;
-    Recorder* recorder = nullptr;
-    Player* player = nullptr;
+    unique_ptr<Recorder> _recorder;
+    unique_ptr<Player> _player;
 
     static void contextStateCallback(pa_context *c, void *userdata);
     void onContextReady(pa_context *c);
 public:
-    static pa_threaded_mainloop* loop();
-
     MediaClient();
     ~MediaClient(); 
 
     void prepare();
-    vector<int8_t> read() const;
-    void write(const vector<uint8_t>& data);
+    Recorder& recorder() const;
+    Player& player() const;
 
     class Player {
-    private:
-        mutex mtx;
-        CountDownLatch& countDownLatch;
-        pa_stream* stream;
-        vector<uint8_t> buffer;
-
-        static void streamStateCallback(pa_stream *s, void *userdata);
-        static void streamWriteCallback(pa_stream* s, size_t length, void* userdata);
-        static void streamWriteFreeCallback(void* p);
-
-        void connectStream();
-    public:
-        Player(CountDownLatch& countDownLatch, pa_stream* stream);
-
-        void prepare();
-        void write(const vector<uint8_t>& data);
-    };
-
-    class Recorder {
+        friend class MediaClient;
     private:
         mutex mtx;
         CountDownLatch& countDownLatch;
         pa_stream* stream;
         vector<int8_t> buffer;
 
-        static void streamReadCallback(pa_stream* s, size_t length, void* userdata);
+        static void streamStateCallback(pa_stream *s, void *userdata);
+        static void streamWriteCallback(pa_stream* s, size_t length, void* userdata);
+        static void streamWriteFreeCallback(void* p);
 
+        void prepare();
         void connectStream();
+    public:
+        Player(CountDownLatch& countDownLatch, pa_stream* stream);
+
+        void write(const vector<int8_t>& data);
+        void interrupt();
+    };
+
+    class Recorder {
+        friend class MediaClient;
+    private:
+        mutex mtx;
+        CountDownLatch& countDownLatch;
+        pa_stream* stream;
+        vector<int8_t> buffer;
+        function<void(vector<int8_t>)> onReadCallback;
+
+        static void streamReadCallback(pa_stream* s, size_t length, void* userdata);
+        void prepare();
+        void connectStream();
+        vector<int8_t> read();
     public:
         Recorder(CountDownLatch& countDownLatch, pa_stream* stream);
 
-        void prepare();
-        vector<int8_t> read();
+        void setOnReadCallback(const function<void(vector<int8_t>)> callback);
+        void startRecording();
+        void stopRecording();
     };
 };
 

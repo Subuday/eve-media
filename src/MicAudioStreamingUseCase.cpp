@@ -2,25 +2,30 @@
 
 const string MicAudioStreamingUseCase::TAG = "[MicAudioStreamingUseCase] ";
 
-MicAudioStreamingUseCase::MicAudioStreamingUseCase(MediaClient& mediaClient, NetworkClient& networkClient) : mediaClient(mediaClient), networkClient(networkClient), workerThread(&MicAudioStreamingUseCase::work, this) {
+MicAudioStreamingUseCase::MicAudioStreamingUseCase(MediaClient& mediaClient, NetworkClient& networkClient) : mediaClient(mediaClient), networkClient(networkClient) {}
 
+void MicAudioStreamingUseCase::prepare() {
+    mediaClient.recorder().setOnReadCallback([this](vector<int8_t> audio) {
+        networkClient.sendAudio(audio);
+    });
 }
 
-void MicAudioStreamingUseCase::work() {
-    while(!isCancelled.load()) {
-        // const auto data = mediaClient.read();
-        // if (!data.empty() && isStreaming.load()) {
-        //     networkClient.sendAudio(data);
-        // }
-    }
+void MicAudioStreamingUseCase::setOnStreamingStartCallback(function<void()> cb) {
+    onStreamingStartCallback = cb;
+}
+
+void MicAudioStreamingUseCase::setOnStreamingStopCallback(function<void()> cb) {
+    onStreamingStopCallback = cb;
 }
 
 void MicAudioStreamingUseCase::startStreaming() {
-    isStreaming.store(true);
+    mediaClient.recorder().startRecording();
+    onStreamingStartCallback();
     cout << TAG << "Streaming started" << endl;
 }
 
 void MicAudioStreamingUseCase::stopStreaming() {
-    isStreaming.store(false);
+    mediaClient.recorder().stopRecording();
+    onStreamingStopCallback();
     cout << TAG << "Streaming stopped" << endl;
 }

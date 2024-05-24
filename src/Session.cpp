@@ -15,6 +15,10 @@ Session::Session(net::io_context& ioc, ssl::context& ctx):
 
 Session::~Session() {}
 
+void Session::setOnReadCallback(function<void(beast::flat_buffer&)> callback) {
+    onReadCallback = callback;
+}
+
 void Session::run(char const* host, char const* port) {
     // Save these for later
     this->host = host;
@@ -35,7 +39,7 @@ void Session::send(vector<int8_t>& data) {
         );
     }
 
-    // cout << TAG << "Sending: " << data.size() << " bytes" << endl;
+    cout << TAG << "Sending: " << data.size() << " bytes" << endl;
 
     q.push(data);
 
@@ -124,7 +128,7 @@ void Session::onSslHandshake(beast::error_code ec) {
     ws.set_option(websocket::stream_base::timeout::suggested(beast::role_type::client));
 
     ws.set_option(websocket::stream_base::decorator([](websocket::request_type& req) {
-        req.set(http::field::authorization, "Token ");
+        req.set(http::field::authorization, "Token");
     }));
 
     // Perform the websocket handshake
@@ -162,8 +166,12 @@ void Session::onRead(beast::error_code ec, size_t bytes_transferred) {
         return;
     }
 
-    string message = beast::buffers_to_string(buffer.data());
-    std::cout << TAG << "Received: " << message << std::endl;
+    // string message = beast::buffers_to_string(buffer.data());
+    // std::cout << TAG << "Received: " << message << std::endl;
+
+    if (onReadCallback) {
+        onReadCallback(buffer);
+    }
 
     buffer.consume(buffer.size());
 

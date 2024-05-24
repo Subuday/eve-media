@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <functional>
 #include <MediaClient.h>
 #include <NetworkClient.h>
 #include <thread>
@@ -13,14 +14,14 @@ class MicAudioStreamingUseCase {
 
         MediaClient& mediaClient;
         NetworkClient& networkClient;
-
-        thread workerThread;
-        atomic<bool> isCancelled;
-        atomic<bool> isStreaming;
-
-        void work();
+        function<void()> onStreamingStartCallback;
+        function<void()> onStreamingStopCallback;
     public:
         MicAudioStreamingUseCase(MediaClient& mediaClient, NetworkClient& networkClient);
+        
+        void prepare();
+        void setOnStreamingStartCallback(function<void()> cb);
+        void setOnStreamingStopCallback(function<void()> cb);
         void startStreaming();
         void stopStreaming();
 };

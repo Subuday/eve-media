@@ -5,6 +5,7 @@
 #include <boost/asio/strand.hpp>
 #include <queue>
 #include <iostream>
+#include <functional>
 #include <vector>
 
 namespace beast = boost::beast;         // from <boost/beast.hpp>
@@ -29,6 +30,7 @@ private:
     string host;
     beast::flat_buffer buffer;
     queue<vector<int8_t>> q;
+    function<void(beast::flat_buffer&)> onReadCallback;
 
     void onResolve(beast::error_code ec, tcp::resolver::results_type results);
     void onConnect(beast::error_code ec, tcp::resolver::results_type::endpoint_type ep);
@@ -42,6 +44,7 @@ public:
     Session(net::io_context& ioc, ssl::context& ctx);
     ~Session();
 
+    void setOnReadCallback(function<void(beast::flat_buffer&)> callback);
     void run(char const* host, char const* port);
     void send(vector<int8_t>& data);
 };

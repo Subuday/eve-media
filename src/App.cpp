@@ -18,7 +18,7 @@ App& App::instance() {
     return instance;
 }
 
-App::App() : isCancelled(false), surface(view), manageEyesStateUseCase(view), micAudioStreamingUseCase(mediaClient, networkClient), speakerAudioStreamingUseCase(mediaClient, networkClient) {}
+App::App() : isCancelled(false), surface(view), mediaClient(), networkClient(), manageEyesStateUseCase(view), micAudioStreamingUseCase(mediaClient, networkClient), speakerAudioStreamingUseCase(mediaClient, networkClient) {}
 
 void App::start() {
     //TODO: Handle error
@@ -37,26 +37,42 @@ void App::start() {
     });
     SignalListenerUseCase sluc;
 
-    MicButtonListenerUseCase::callback([this](bool isPressed) { 
-        // TODO: Check thread that is called
-        if (isPressed) {
-            manageEyesStateUseCase.speak();
-        }
-    });
-    MicButtonListenerUseCase mcblc;
-
     shutdownListenerUseCase.callback([this] {
         // Check thread that is called
         manageEyesStateUseCase.closeEyes();
     });
 
+    networkClient.start();
+    mediaClient.prepare();
+
     manageEyesStateUseCase.openEyes();
 
-    networkClient.start();
-    // mediaClient.prepare();
+    speakerAudioStreamingUseCase.setOnStreamingStartCallback([this] {
+        manageEyesStateUseCase.speak();
+    });
+    speakerAudioStreamingUseCase.setOnStreamingStopCallback([this] {
+        manageEyesStateUseCase.blink();
+    });
+
+    micAudioStreamingUseCase.setOnStreamingStartCallback([this] {
+        manageEyesStateUseCase.think();
+    });
+    micAudioStreamingUseCase.setOnStreamingStopCallback([this] {
+        manageEyesStateUseCase.blink();
+    });
+    micAudioStreamingUseCase.prepare();    
+
+    buttonClient.setOnButtonPressCallback([this](bool isPressed) {
+        if (isPressed) {
+            micAudioStreamingUseCase.startStreaming();
+        } else {
+            micAudioStreamingUseCase.stopStreaming();
+        }
+    });
+    buttonClient.prepare();
 
 
-    cout << "App started" << endl;
+    cout << "App started - " << &networkClient << endl;
 
     //TODO: Clean up of pulse audio
 }

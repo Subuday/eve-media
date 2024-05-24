@@ -245,7 +245,6 @@ add_executable(
 	src/MicAudioStreamingUseCase.cpp
 	src/SpeakerAudioStreamingUseCase.cpp
 	src/ManageEyesStateUseCase.cpp
-	src/MicButtonListenerUseCase.cpp
 	src/ShutdownListenerUseCase.cpp
 	src/SignalListenerUseCase.cpp
 	src/Session.cpp

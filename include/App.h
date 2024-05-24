@@ -1,6 +1,7 @@
 #pragma once
 
 #include <atomic>
+#include <ButtonClient.h>
 #include <functional>  
 #include <pulse/pulseaudio.h>
 #include <EyesView.h>
@@ -8,7 +9,6 @@
 #include <NetworkClient.h>
 #include <MediaClient.h>
 #include <MicAudioStreamingUseCase.h>
-#include <MicButtonListenerUseCase.h>
 #include <ManageEyesStateUseCase.h>
 #include <SpeakerAudioStreamingUseCase.h>
 #include <ShutdownListenerUseCase.h>
@@ -30,6 +30,7 @@ class App {
         MediaClient mediaClient;
         
         NetworkClient networkClient;
+        ButtonClient buttonClient;
 
         Surface surface;
         EyesView view;

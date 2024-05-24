@@ -10,10 +10,6 @@
 
 pa_threaded_mainloop* MediaClient::_loop = nullptr;
 
-pa_threaded_mainloop* MediaClient::loop() {
-    return MediaClient::_loop;
-}
-
 MediaClient::MediaClient() : countDownLatch(2) {}
 
 void MediaClient::contextStateCallback(pa_context *c, void *userdata) {
@@ -57,6 +53,14 @@ void MediaClient::prepare() {
     countDownLatch.await();
 }
 
+MediaClient::Recorder& MediaClient::recorder() const {
+    return *_recorder;
+}
+
+MediaClient::Player& MediaClient::player() const {
+    return *_player;
+}
+
 void MediaClient::onContextReady(pa_context *c) {
     //Add logging and error handling
     cout << "Context is ready!" << endl;
@@ -66,34 +70,16 @@ void MediaClient::onContextReady(pa_context *c) {
     ss.channels = 2;
     ss.rate = 44100;
     pa_stream* rs = pa_stream_new(c, "eva-media-recorder", &ss, nullptr);
-    recorder = new Recorder(countDownLatch, rs);
-    recorder->prepare();
+    _recorder = make_unique<Recorder>(countDownLatch, rs);
+    _recorder->prepare();
 
     pa_sample_spec pss;
     pss.format = PA_SAMPLE_S16LE;
     pss.channels = 1;
     pss.rate = 16000;
     pa_stream* ps = pa_stream_new(c, "eva-media-player", &pss, nullptr);
-    player = new Player(countDownLatch, ps);
-    player->prepare();
-}
-
-vector<int8_t> MediaClient::read() const {
-    if (recorder != nullptr) {
-        return recorder->read();
-    } else {
-        cerr << "Recorder is not initialised!" << endl;
-        vector<int8_t> data;
-        return data;
-    }
-}
-
-void MediaClient::write(const vector<uint8_t>& data) {
-    if (player != nullptr) {
-        player->write(data);
-    } else {
-        std::cerr << "Player is not initialised!" << std::endl;
-    }
+    _player = make_unique<Player>(countDownLatch, ps);
+    _player->prepare();
 }
 
 MediaClient::Player::Player(CountDownLatch& countDownLatch, pa_stream* stream) : countDownLatch(countDownLatch), stream(stream) {
@@ -126,7 +112,7 @@ void MediaClient::Player::streamWriteCallback(pa_stream* s, size_t length, void*
     // TODO: ADD Logs and null checks
     Player* player = static_cast<Player*>(userdata);
 
-    cout << "Player stream requested " << length << " bytes." << endl;
+    // cout << "Player stream requested " << length << " bytes." << endl;
     size_t bufferSize;
     {
         lock_guard<mutex> lock(player->mtx);
@@ -140,7 +126,7 @@ void MediaClient::Player::streamWriteCallback(pa_stream* s, size_t length, void*
     }
 
     //TODO: Recheck this code if it is corrects
-    uint8_t* chunk = new uint8_t[chunkSize];
+    int8_t* chunk = new int8_t[chunkSize];
     memset(chunk, 0, chunkSize);  
     if (bufferSize > 0) {
         {
@@ -162,27 +148,19 @@ void MediaClient::Player::streamWriteCallback(pa_stream* s, size_t length, void*
                 player->buffer.erase(player->buffer.begin(), player->buffer.begin() + chunkSize);
             }
         }
-        std::cout << "Player succeeded to write to stream " << chunkSize << " bytes" << std::endl;
+        // std::cout << "Player succeeded to write to stream " << chunkSize << " bytes" << std::endl;
     } else {
         std::cerr << "Player failed to write to stream: " << pa_strerror(result) << std::endl;
     }
 }
 
 void MediaClient::Player::streamWriteFreeCallback(void* p) {
-    delete[] static_cast<uint8_t*>(p);
+    delete[] static_cast<int8_t*>(p);
 }
 
 void MediaClient::Player::prepare() {
     connectStream();
     countDownLatch.countDown();
-}
-
-void MediaClient::Player::write(const vector<uint8_t>& data) {
-    // std::cout << "Player buffer is fulfilled!" << std::endl;
-    {
-        lock_guard<mutex> lock(mtx);
-        buffer.insert(buffer.end(), data.begin(), data.end());
-    }   
 }
 
 void MediaClient::Player::connectStream() {
@@ -214,8 +192,49 @@ void MediaClient::Player::connectStream() {
     // pa_threaded_mainloop_unlock(loop);
 }
 
+void MediaClient::Player::write(const vector<int8_t>& data) {
+    // std::cout << "Player buffer is fulfilled!" << std::endl;
+    {
+        lock_guard<mutex> lock(mtx);
+        buffer.insert(buffer.end(), data.begin(), data.end());
+    }   
+}
+
+void MediaClient::Player::interrupt() {
+    {
+        lock_guard<mutex> lock(mtx);
+        buffer.clear();
+    }
+    pa_threaded_mainloop_lock(MediaClient::_loop);
+    pa_stream_flush(stream, nullptr, nullptr);
+    pa_threaded_mainloop_unlock(MediaClient::_loop);
+}
+
 MediaClient::Recorder::Recorder(CountDownLatch& countDownLatch, pa_stream* stream) : countDownLatch(countDownLatch), stream(stream) {
     pa_stream_set_read_callback(stream, streamReadCallback, this);
+}
+
+void MediaClient::Recorder::setOnReadCallback(const function<void(vector<int8_t>)> callback) {
+    lock_guard<mutex> lock(mtx);
+    onReadCallback = callback;
+}
+
+void MediaClient::Recorder::startRecording() {
+    pa_threaded_mainloop_lock(MediaClient::_loop);
+    // TODO: If a cork is very quickly followed by an uncork or the other way round, 
+    // this might not actually have any effect on the stream that is output
+    pa_stream_cork(stream, 0, nullptr, nullptr);
+    pa_threaded_mainloop_unlock(MediaClient::_loop);
+}
+
+void MediaClient::Recorder::stopRecording() {
+    pa_threaded_mainloop_lock(MediaClient::_loop);
+    // TODO: If a cork is very quickly followed by an uncork or the other way round, 
+    // this might not actually have any effect on the stream that is output
+    pa_stream_cork(stream, 1, nullptr, nullptr);
+    // TODO: Move flushing into cork callback?
+    pa_stream_flush(stream, nullptr, nullptr);
+    pa_threaded_mainloop_unlock(MediaClient::_loop);
 }
 
 void MediaClient::Recorder::streamReadCallback(pa_stream* stream, size_t nbytes, void* userdata) {
@@ -232,8 +251,16 @@ void MediaClient::Recorder::streamReadCallback(pa_stream* stream, size_t nbytes,
         {
             lock_guard<mutex> lock(recorder->mtx);
             const int8_t* chunkPtr = static_cast<const int8_t*>(chunk);
-            // cout << "Recorder read " << nbytes << " bytes." << endl;
+            cout << "Recorder read " << nbytes << " bytes." << endl;
             recorder->buffer.insert(recorder->buffer.end(), chunkPtr, chunkPtr + (nbytes / sizeof(int8_t)));
+        }
+        function<void(vector<int8_t>)> callback;
+        {
+            lock_guard<mutex> lock(recorder->mtx);
+            callback = recorder->onReadCallback;
+        }
+        if (callback) {
+            callback(recorder->read());
         }
     }
 
@@ -243,6 +270,27 @@ void MediaClient::Recorder::streamReadCallback(pa_stream* stream, size_t nbytes,
 void MediaClient::Recorder::prepare() {
     connectStream();
     countDownLatch.countDown();
+}
+
+void MediaClient::Recorder::connectStream() {
+    // pa_threaded_mainloop* loop = MediaClient::loop();
+
+    // pa_threaded_mainloop_lock(loop);
+
+    pa_stream_state_t state = pa_stream_get_state(stream);
+    if (state != PA_STREAM_UNCONNECTED) {
+        // pa_threaded_mainloop_unlock(loop);
+        return;
+    }
+
+    int result = pa_stream_connect_record(stream, nullptr, nullptr, PA_STREAM_START_CORKED);
+    if (result == 0) {
+        cout << "Recorder succeeded to connect stream!" << endl;
+    } else {
+        cerr << "Recorder failed to connect stream!" << endl;
+    }
+
+    // pa_threaded_mainloop_unlock(loop);
 }
 
 vector<int8_t> MediaClient::Recorder::read() {
@@ -257,27 +305,6 @@ vector<int8_t> MediaClient::Recorder::read() {
     }
     
     return chunk;
-}
-
-void MediaClient::Recorder::connectStream() {
-    // pa_threaded_mainloop* loop = MediaClient::loop();
-
-    // pa_threaded_mainloop_lock(loop);
-
-    pa_stream_state_t state = pa_stream_get_state(stream);
-    if (state != PA_STREAM_UNCONNECTED) {
-        // pa_threaded_mainloop_unlock(loop);
-        return;
-    }
-
-    int result = pa_stream_connect_record(stream, nullptr, nullptr, PA_STREAM_NOFLAGS);
-    if (result == 0) {
-        cout << "Recorder succeeded to connect stream!" << endl;
-    } else {
-        cerr << "Recorder failed to connect stream!" << endl;
-    }
-
-    // pa_threaded_mainloop_unlock(loop);
 }
 
 MediaClient::~MediaClient() {}
