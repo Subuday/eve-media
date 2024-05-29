@@ -4,6 +4,7 @@
 #include <functional>
 #include <MediaClient.h>
 #include <NetworkClient.h>
+#include <Timer.h>
 #include <thread>
 
 using namespace std;
@@ -14,6 +15,8 @@ class MicAudioStreamingUseCase {
 
         MediaClient& mediaClient;
         NetworkClient& networkClient;
+        Timer timer;
+        atomic<bool> isStreaming;
         function<void()> onStreamingStartCallback;
         function<void()> onStreamingStopCallback;
     public:

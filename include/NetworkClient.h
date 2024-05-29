@@ -23,6 +23,8 @@ public:
 
     void start();
     void setOnReceiveAudioCallback(function<void(vector<int8_t>)> callback);
+    void sendStartRecording();
     void sendAudio(vector<int8_t>& data);
+    void sendStopRecording();
     void stop();
 };

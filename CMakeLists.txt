@@ -253,6 +253,7 @@ add_executable(
     src/MediaClient.cpp
     src/utils/Semaphore.cpp
     src/utils/CountDownLatch.cpp
+src/utils/Timer.cpp
 	${DIR_SRCS}
 )
 

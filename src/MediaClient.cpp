@@ -8,6 +8,8 @@
 #include <vector>
 #include <pulse/pulseaudio.h>
 
+const string MediaClient::TAG = "[MediaClient] ";
+
 pa_threaded_mainloop* MediaClient::_loop = nullptr;
 
 MediaClient::MediaClient() : countDownLatch(2) {}
@@ -155,6 +157,7 @@ void MediaClient::Player::streamWriteCallback(pa_stream* s, size_t length, void*
 }
 
 void MediaClient::Player::streamWriteFreeCallback(void* p) {
+    // cout << "Player stream write free callback!" << endl;
     delete[] static_cast<int8_t*>(p);
 }
 
@@ -211,6 +214,8 @@ void MediaClient::Player::interrupt() {
 }
 
 MediaClient::Recorder::Recorder(CountDownLatch& countDownLatch, pa_stream* stream) : countDownLatch(countDownLatch), stream(stream) {
+    pa_stream_set_state_callback(stream, streamStateCallback, nullptr);
+    pa_stream_set_suspended_callback(stream, streamSuspendedCallback, nullptr);
     pa_stream_set_read_callback(stream, streamReadCallback, this);
 }
 
@@ -221,20 +226,32 @@ void MediaClient::Recorder::setOnReadCallback(const function<void(vector<int8_t>
 
 void MediaClient::Recorder::startRecording() {
     pa_threaded_mainloop_lock(MediaClient::_loop);
-    // TODO: If a cork is very quickly followed by an uncork or the other way round, 
-    // this might not actually have any effect on the stream that is output
-    pa_stream_cork(stream, 0, nullptr, nullptr);
+    pa_stream_cork(stream, 0, streamPauseCallback, nullptr);
+    cout << "Recorder started recording! " << endl;
     pa_threaded_mainloop_unlock(MediaClient::_loop);
 }
 
 void MediaClient::Recorder::stopRecording() {
     pa_threaded_mainloop_lock(MediaClient::_loop);
-    // TODO: If a cork is very quickly followed by an uncork or the other way round, 
-    // this might not actually have any effect on the stream that is output
-    pa_stream_cork(stream, 1, nullptr, nullptr);
-    // TODO: Move flushing into cork callback?
-    pa_stream_flush(stream, nullptr, nullptr);
+    pa_stream_cork(stream, 1, streamPauseCallback, nullptr);
+    cout << "Recorder stopping recording! before" << endl;
     pa_threaded_mainloop_unlock(MediaClient::_loop);
+}
+
+void MediaClient::Recorder::streamStateCallback(pa_stream *s, void *userdata) {
+    switch (pa_stream_get_state(s)) {
+        case PA_STREAM_READY: {
+            cout << TAG << "Recorder stream is ready!" << endl;
+            break;
+        }
+        default:
+            cout << TAG << "Recorder stream state is ignored!" << endl;
+            break;
+    }
+}
+
+void MediaClient::Recorder::streamSuspendedCallback(pa_stream *s, void *userdata) {
+    cout << "Recorder stream is suspended!" << endl;
 }
 
 void MediaClient::Recorder::streamReadCallback(pa_stream* stream, size_t nbytes, void* userdata) {
@@ -260,11 +277,15 @@ void MediaClient::Recorder::streamReadCallback(pa_stream* stream, size_t nbytes,
             callback = recorder->onReadCallback;
         }
         if (callback) {
-            callback(recorder->read());
+            callback(recorder->read(nbytes));
         }
     }
 
     pa_stream_drop(stream);
+}
+
+void MediaClient::Recorder::streamPauseCallback(pa_stream* s, int success, void* userdata) {
+    cout << "Recorder is paused callback! " << success << endl;
 }
 
 void MediaClient::Recorder::prepare() {
@@ -293,8 +314,8 @@ void MediaClient::Recorder::connectStream() {
     // pa_threaded_mainloop_unlock(loop);
 }
 
-vector<int8_t> MediaClient::Recorder::read() {
-    const size_t chunkSize = 2048;
+vector<int8_t> MediaClient::Recorder::read(size_t bytes) {
+    const size_t chunkSize = bytes;
     vector<int8_t> chunk;
     {
         lock_guard<mutex> lock(mtx);

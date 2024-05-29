@@ -17,6 +17,8 @@ public:
     class Player;
     class Recorder;
 private:
+    static const string TAG;
+    
     static pa_threaded_mainloop* _loop;
     
     CountDownLatch countDownLatch;
@@ -63,10 +65,13 @@ public:
         vector<int8_t> buffer;
         function<void(vector<int8_t>)> onReadCallback;
 
+        static void streamStateCallback(pa_stream *s, void *userdata);
+        static void streamSuspendedCallback(pa_stream *s, void *userdata); 
         static void streamReadCallback(pa_stream* s, size_t length, void* userdata);
+        static void streamPauseCallback(pa_stream* s, int success, void* userdata);
         void prepare();
         void connectStream();
-        vector<int8_t> read();
+        vector<int8_t> read(size_t bytes);
     public:
         Recorder(CountDownLatch& countDownLatch, pa_stream* stream);
 
