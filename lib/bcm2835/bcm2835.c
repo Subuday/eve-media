@@ -2042,28 +2042,28 @@ int bcm2835_init(void)
         uint32_t peri_size;
         if (fread(buf, 1, sizeof(buf), fp) >= 8)
         {
-            base_address = (buf[4] << 24) |
-              (buf[5] << 16) |
-              (buf[6] << 8) |
-              (buf[7] << 0);
+            base_address = ((uint32_t) buf[4] << 24) |
+              ((uint32_t) buf[5] << 16) |
+              ((uint32_t) buf[6] << 8) |
+              ((uint32_t) buf[7] << 0);
             
-            peri_size = (buf[8] << 24) |
-              (buf[9] << 16) |
-              (buf[10] << 8) |
-              (buf[11] << 0);
+            peri_size = ((uint32_t) buf[8] << 24) |
+              ((uint32_t) buf[9] << 16) |
+              ((uint32_t) buf[10] << 8) |
+              ((uint32_t) buf[11] << 0);
             
             if (!base_address)
             {
                 /* looks like RPI 4 */
-                base_address = (buf[8] << 24) |
-                      (buf[9] << 16) |
-                      (buf[10] << 8) |
-                      (buf[11] << 0);
+                base_address = ((uint32_t) buf[8] << 24) |
+                      ((uint32_t) buf[9] << 16) |
+                      ((uint32_t) buf[10] << 8) |
+                      ((uint32_t) buf[11] << 0);
                       
-                peri_size = (buf[12] << 24) |
-                (buf[13] << 16) |
-                (buf[14] << 8) |
-                (buf[15] << 0);
+                peri_size = ((uint32_t) buf[12] << 24) |
+                ((uint32_t) buf[13] << 16) |
+                ((uint32_t) buf[14] << 8) |
+                ((uint32_t) buf[15] << 0);
             }
             /* check for valid known range formats */
             if ((buf[0] == 0x7e) &&
