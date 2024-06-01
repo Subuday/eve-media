@@ -36,7 +36,8 @@ int EyesView::animationFrames(EyesState state) {
 
 void EyesView::drawFrame(int width, int height, uint16_t* buffer, string animation) {
     // TODO: Handle error
-    string framePath = "../lib/eve-lcd-driver/res/" + animation + "/frame_" + to_string(frameIndex) + ".png";
+    string framePath = "../../lib/eve-lcd-driver/res/" + animation + "/frame_" + to_string(frameIndex) + ".png";
+    // string framePath = "../lib/eve-lcd-driver/res/" + animation + "/frame_" + to_string(frameIndex) + ".png";
     unsigned char* data = stbi_load(framePath.c_str(), &width, &height, &frameChannels, 0);
 
     for (int y = 0; y < height; ++y) {
