@@ -13,6 +13,7 @@ void NetworkClient::start() {
         onReceiveAudioCallback(data);
     });
     // session->run("api.deepgram.com", "443");
+    // session->run("192.168.0.102", "3000");
     session->run("192.168.31.100", "3000");
     worker = thread([this](){ ioc.run(); });
 }

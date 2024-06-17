@@ -4,7 +4,7 @@ project(eve-media)
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED True)
 
-# add_definitions(-DNO_TLS)
+add_definitions(-DNO_TLS)
 
 set(DEFAULT_TO_SINGLE_CORE_BOARD OFF)
 set(DEFAULT_TO_ARMV6Z OFF)
@@ -253,9 +253,17 @@ add_executable(
     src/MediaClient.cpp
     src/utils/Semaphore.cpp
     src/utils/CountDownLatch.cpp
-src/utils/Timer.cpp
+	src/utils/Timer.cpp
 	${DIR_SRCS}
 )
+
+set(BLEND2D_STATIC TRUE)
+
+# Include directory for Blend2D headers
+include_directories(/home/msutkovenko/eve-project/lib/blend2d/include)
+
+# Add a path to the Blend2D library
+link_directories(/home/msutkovenko/eve-project/lib/blend2d)
 
 target_include_directories(eve_media PUBLIC include)
 
@@ -268,4 +276,6 @@ target_link_libraries(
 	PRIVATE bcm_host
 	PRIVATE  atomic
 	PRIVATE boost_system
+	PRIVATE /home/msutkovenko/eve-project/lib/blend2d/libblend2d.a
+	PRIVATE rt
 )
